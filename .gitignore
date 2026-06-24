@@ -1,0 +1,73 @@
+#  Python 
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg
+*.egg-info/
+eggs/
+parts/
+var/
+sdist/
+develop-eggs/
+.installed.cfg
+lib/
+lib64/
+
+#  Virtual Environment 
+.venv/
+venv/
+env/
+ENV/
+
+#  Environment & Secrets 
+.env
+.env.*
+!.env.example
+
+#  Database 
+*.sqlite3
+*.db
+
+#  Testing & Coverage 
+.pytest_cache/
+.coverage
+htmlcov/
+coverage.xml
+*.cover
+
+#  Alembic 
+alembic/versions/*.pyc
+
+#  Logs 
+*.log
+logs/
+
+#  Celery 
+celerybeat-schedule
+celerybeat.pid
+
+#  Storage / Uploads 
+media/
+uploads/
+
+#  GeoIP 
+*.mmdb
+
+#  IDE 
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+#  Docker 
+docker-compose.override.yml
+
+#  Mypy 
+.mypy_cache/
+.dmypy.json
+
+#  Ruff 
+.ruff_cache/
