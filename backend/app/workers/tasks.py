@@ -1,16 +1,29 @@
 from __future__ import annotations
 
 import io
-import logging
 from typing import Optional
 
 import resend
+import structlog
 from celery import Celery
 from celery.schedules import crontab
+from celery.signals import setup_logging
 
 from app.core.config import settings
+from app.utils.logging import configure_logging
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
+
+
+@setup_logging.connect
+def _configure_worker_logging(**_: object) -> None:
+    """
+    Configure structlog in the Celery worker/beat process.
+
+    Connecting to ``setup_logging`` also tells Celery not to install its own
+    logging config, so the worker uses the same structured pipeline as the API.
+    """
+    configure_logging()
 
 #  Celery Application 
 celery_app = Celery(
@@ -211,7 +224,7 @@ def generate_thumbnail(
 
         # Generate thumbnail
         with Image.open(io.BytesIO(image_data)) as img:
-            img.thumbnail(settings.THUMBNAIL_SIZE, Image.LANCZOS)
+            img.thumbnail(settings.thumbnail_size, Image.LANCZOS)
             thumb_buffer = io.BytesIO()
             fmt = "JPEG" if img.mode == "RGB" else "PNG"
             img.save(thumb_buffer, format=fmt, quality=85, optimize=True)

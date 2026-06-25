@@ -1,84 +1,69 @@
 version: "3.9"
 
+x-backend: &backend
+  build:
+    context: ./backend
+    target: development
+  working_dir: /app
+  env_file:
+    - backend/.env
+  environment:
+    - PYTHONPATH=/app
+  volumes:
+    - ./backend:/app
+  networks:
+    - backend
+  restart: unless-stopped
+
 services:
   #  API Server 
   api:
-    build:
-      context: .
-      target: development
+    <<: *backend
     ports:
       - "8000:8000"
-    env_file:
-      - backend/.env
-    volumes:
-      - .:/app
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
-    networks:
-      - backend
-    restart: unless-stopped
 
   #  Celery Worker 
   worker:
-    build:
-      context: .
-      target: development
+    <<: *backend
     command: >
       celery -A app.workers.tasks.celery_app worker
       --loglevel=info
       --queues=email,media,notifications,maintenance
       --concurrency=4
-    env_file:
-      - backend/.env
-    volumes:
-      - .:/app
     depends_on:
-      - redis
-      - postgres
-    networks:
-      - backend
-    restart: unless-stopped
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
 
-  # Celery Beat (Scheduler) 
+  #  Celery Beat (Scheduler) 
   beat:
-    build:
-      context: .
-      target: development
+    <<: *backend
     command: >
       celery -A app.workers.tasks.celery_app beat
       --loglevel=info
       --scheduler celery.beat:PersistentScheduler
-    env_file:
-      - backend/.env
     volumes:
-      - .:/app
+      - ./backend:/app
       - celery-beat-data:/var/lib/celery
     depends_on:
       - redis
-    networks:
-      - backend
-    restart: unless-stopped
 
   #  Flower (Celery Monitor) 
   flower:
-    build:
-      context: .
-      target: development
+    <<: *backend
     command: >
       celery -A app.workers.tasks.celery_app flower
       --port=5555
     ports:
       - "5555:5555"
-    env_file:
-      - backend/.env
     depends_on:
       - redis
-    networks:
-      - backend
-    restart: unless-stopped
 
   #  PostgreSQL 
   postgres:
@@ -101,7 +86,7 @@ services:
       retries: 5
     restart: unless-stopped
 
-  # Redis 
+  #  Redis 
   redis:
     image: redis:7-alpine
     command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru

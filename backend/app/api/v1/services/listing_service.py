@@ -149,10 +149,10 @@ class ListingService:
 
         # Validate file
         content_type = file.content_type or ""
-        if content_type not in settings.ALLOWED_IMAGE_TYPES:
+        if content_type not in settings.allowed_image_types_list:
             raise HTTPException(
                 status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
-                detail=f"Unsupported image type. Allowed: {', '.join(settings.ALLOWED_IMAGE_TYPES)}",
+                detail=f"Unsupported image type. Allowed: {', '.join(settings.allowed_image_types_list)}",
             )
 
         contents = await file.read()

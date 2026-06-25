@@ -1,12 +1,6 @@
-from __future__ import annotations
+from fastapi import APIRouter, File, Query, Request, Response, UploadFile, status
 
-from fastapi import APIRouter, File, Query, UploadFile, status
-from fastapi.responses import JSONResponse
-
-from app.api.v1.dependencies import (
-    CurrentUser,
-    ListingServiceDep,
-)
+from app.api.v1.dependencies import CurrentUser, ListingServiceDep
 from app.api.v1.models.models import GenderPreference, PropertyType
 from app.api.v1.schemas.schemas import (
     ListingCreateRequest,
@@ -17,7 +11,6 @@ from app.api.v1.schemas.schemas import (
     PaginatedResponse,
 )
 from app.core.rate_limit import LISTING_LIMIT, limiter
-from fastapi import Request
 
 router = APIRouter(prefix="/listings", tags=["Listings"])
 
@@ -36,6 +29,7 @@ router = APIRouter(prefix="/listings", tags=["Listings"])
 @limiter.limit(LISTING_LIMIT)
 async def create_listing(
     request: Request,
+    response: Response,
     body: ListingCreateRequest,
     current_user: CurrentUser,
     listing_service: ListingServiceDep,
@@ -144,11 +138,12 @@ async def delete_listing(
 
 @router.post(
     "/{listing_id}/images",
+    response_model=None,
     status_code=status.HTTP_201_CREATED,
     summary="Upload listing image",
     description=(
         "Upload an image for a listing. "
-        f"Maximum 10 images per listing. "
+        "Maximum 10 images per listing. "
         "Thumbnail is generated asynchronously."
     ),
     responses={
@@ -160,6 +155,7 @@ async def delete_listing(
 @limiter.limit(LISTING_LIMIT)
 async def upload_listing_image(
     request: Request,
+    response: Response,
     listing_id: str,
     current_user: CurrentUser,
     listing_service: ListingServiceDep,

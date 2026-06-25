@@ -1,11 +1,30 @@
 from __future__ import annotations
 
+import json
 import secrets
 from functools import lru_cache
-from typing import Literal
+from typing import Any, Literal
 
-from pydantic import AnyHttpUrl, EmailStr, field_validator, model_validator
+from pydantic import EmailStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+def _to_list(v: Any) -> list[str]:
+    """
+    Convert env var to list[str].
+    Accepts:
+      - Already a list  → return as-is
+      - JSON string     → parse as JSON
+      - Comma-separated → split on comma
+    """
+    if isinstance(v, list):
+        return [str(i).strip() for i in v]
+    if isinstance(v, str):
+        v = v.strip()
+        if v.startswith("["):
+            return [str(i).strip() for i in json.loads(v)]
+        return [i.strip() for i in v.split(",") if i.strip()]
+    return list(v)
 
 
 class Settings(BaseSettings):
@@ -22,7 +41,13 @@ class Settings(BaseSettings):
     APP_VERSION: str = "1.0.0"
     APP_DEBUG: bool = False
     API_V1_PREFIX: str = "/api/v1"
-    ALLOWED_HOSTS: list[str] = ["localhost", "127.0.0.1"]
+
+    # Declared as str — validator converts to list so pydantic-settings
+    # never tries to JSON-decode these from the environment.
+    ALLOWED_HOSTS: str = "localhost,127.0.0.1"
+    CORS_ORIGINS: str = "http://localhost:3000,http://localhost:5173"
+    ALLOWED_IMAGE_TYPES: str = "image/jpeg,image/png,image/webp"
+    ALLOWED_AUDIO_TYPES: str = "audio/aac,audio/mpeg,audio/ogg"
 
     #  Server 
     HOST: str = "0.0.0.0"
@@ -40,7 +65,6 @@ class Settings(BaseSettings):
     ACCOUNT_LOCKOUT_MINUTES: int = 60
 
     #  CORS 
-    CORS_ORIGINS: list[str] = ["http://localhost:3000", "http://localhost:5173"]
     CORS_ALLOW_CREDENTIALS: bool = True
 
     #  Database 
@@ -92,11 +116,39 @@ class Settings(BaseSettings):
     #  Uploads 
     MAX_UPLOAD_SIZE_MB: int = 10
     VOICE_NOTE_MAX_DURATION_SECONDS: int = 300
-    ALLOWED_IMAGE_TYPES: list[str] = ["image/jpeg", "image/png", "image/webp"]
-    ALLOWED_AUDIO_TYPES: list[str] = ["audio/aac", "audio/mpeg", "audio/ogg"]
-    THUMBNAIL_SIZE: tuple[int, int] = (400, 300)
+    THUMBNAIL_SIZE: str = "400,300"
 
-    #  Derived Properties 
+    #  Validators: str → list[str] 
+    @field_validator("ALLOWED_HOSTS", "CORS_ORIGINS",
+                     "ALLOWED_IMAGE_TYPES", "ALLOWED_AUDIO_TYPES", mode="before")
+    @classmethod
+    def parse_str_list(cls, v: Any) -> Any:
+        # Return raw — we expose list properties below
+        return v
+
+    #  Derived list properties 
+    @property
+    def allowed_hosts_list(self) -> list[str]:
+        return _to_list(self.ALLOWED_HOSTS)
+
+    @property
+    def cors_origins_list(self) -> list[str]:
+        return _to_list(self.CORS_ORIGINS)
+
+    @property
+    def allowed_image_types_list(self) -> list[str]:
+        return _to_list(self.ALLOWED_IMAGE_TYPES)
+
+    @property
+    def allowed_audio_types_list(self) -> list[str]:
+        return _to_list(self.ALLOWED_AUDIO_TYPES)
+
+    @property
+    def thumbnail_size(self) -> tuple[int, int]:
+        parts = self.THUMBNAIL_SIZE.split(",")
+        return int(parts[0].strip()), int(parts[1].strip())
+
+    #  Derived scalar properties 
     @property
     def is_production(self) -> bool:
         return self.APP_ENV == "production"
@@ -128,15 +180,13 @@ class Settings(BaseSettings):
     @field_validator("DATABASE_URL", mode="before")
     @classmethod
     def validate_database_url(cls, v: str) -> str:
-        if not v.startswith("postgresql"):
+        if not str(v).startswith("postgresql"):
             raise ValueError("DATABASE_URL must be a PostgreSQL connection string")
         return v
 
     @model_validator(mode="after")
     def validate_production_secrets(self) -> "Settings":
         if self.is_production:
-            if self.SECRET_KEY == secrets.token_hex(64):
-                raise ValueError("SECRET_KEY must be explicitly set in production")
             if not self.RESEND_API_KEY:
                 raise ValueError("RESEND_API_KEY is required in production")
             if not self.S3_ACCESS_KEY_ID:

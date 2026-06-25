@@ -12,17 +12,18 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    Sequence,
     String,
     Text,
     UniqueConstraint,
     func,
+    text,
 )
-from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
 
-# Enumerations 
+#  Enumerations 
 import enum
 
 
@@ -91,9 +92,24 @@ class SecurityEventType(str, enum.Enum):
     SUSPICIOUS_ACTIVITY = "suspicious_activity"
 
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
+# RMF User ID Sequence 
+# PostgreSQL sequence that drives the RMF-XXXXXX user IDs.
+# Defined here so Alembic autogenerate picks it up alongside the table.
+rmf_user_seq = Sequence("rmf_user_seq", start=1, increment=1)
+
+
 def _uuid() -> str:
+    """Still used for non-user PKs (conversations, messages, etc.)."""
     return str(uuid.uuid4())
+
+
+def _enum_values(enum_cls):
+    """
+    Persist the enum *value* (e.g. "seeker") rather than the member *name*
+    (e.g. "SEEKER"). The PostgreSQL enum types and API schemas use the
+    lowercase values, so SQLAlchemy must store/read those.
+    """
+    return [member.value for member in enum_cls]
 
 
 def _utcnow() -> datetime:
@@ -101,21 +117,25 @@ def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
 #  USERS
-# ═══════════════════════════════════════════════════════════════════════════════
 class User(Base):
     __tablename__ = "users"
 
     id: Mapped[str] = mapped_column(
-        String(36), primary_key=True, default=_uuid, index=True
+        String(12),       # e.g. RMF-000001  (prefix=4 + dash=1 + digits=6 + null=1 → 12 max)
+        primary_key=True,
+        # The id is generated entirely in PostgreSQL via server_default; SQLAlchemy
+        # fetches it back with RETURNING. (A Python-side default cannot run SQL under
+        # the async asyncpg driver — it has no get_bind().)
+        server_default=text("'RMF-' || lpad(nextval('rmf_user_seq')::text, 6, '0')"),
+        index=True,
     )
     email: Mapped[str] = mapped_column(
         String(255), unique=True, nullable=False, index=True
     )
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
     role: Mapped[UserRole] = mapped_column(
-        Enum(UserRole, name="user_role"), default=UserRole.SEEKER, nullable=False
+        Enum(UserRole, name="user_role", values_callable=_enum_values), default=UserRole.SEEKER, nullable=False
     )
 
     # Profile
@@ -124,7 +144,7 @@ class User(Base):
     avatar_url: Mapped[Optional[str]] = mapped_column(String(500))
     phone_number: Mapped[Optional[str]] = mapped_column(String(20))
     gender: Mapped[Optional[GenderPreference]] = mapped_column(
-        Enum(GenderPreference, name="gender_preference")
+        Enum(GenderPreference, name="gender_preference", values_callable=_enum_values)
     )
     date_of_birth: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
 
@@ -193,9 +213,7 @@ class User(Base):
     )
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
 #  AUTHENTICATION
-# ═══════════════════════════════════════════════════════════════════════════════
 class EmailVerification(Base):
     __tablename__ = "email_verifications"
 
@@ -335,7 +353,7 @@ class SecurityEvent(Base):
         String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
     )
     event_type: Mapped[SecurityEventType] = mapped_column(
-        Enum(SecurityEventType, name="security_event_type"), nullable=False
+        Enum(SecurityEventType, name="security_event_type", values_callable=_enum_values), nullable=False
     )
     ip_address: Mapped[Optional[str]] = mapped_column(String(45))
     user_agent: Mapped[Optional[str]] = mapped_column(String(500))
@@ -353,9 +371,7 @@ class SecurityEvent(Base):
     )
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
 #  LISTINGS
-# ═══════════════════════════════════════════════════════════════════════════════
 class Listing(Base):
     __tablename__ = "listings"
 
@@ -368,7 +384,7 @@ class Listing(Base):
     title: Mapped[str] = mapped_column(String(200), nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False)
     property_type: Mapped[PropertyType] = mapped_column(
-        Enum(PropertyType, name="property_type"), nullable=False
+        Enum(PropertyType, name="property_type", values_callable=_enum_values), nullable=False
     )
 
     # Location
@@ -386,7 +402,7 @@ class Listing(Base):
 
     # Preferences
     gender_preference: Mapped[GenderPreference] = mapped_column(
-        Enum(GenderPreference, name="gender_preference_listing"),
+        Enum(GenderPreference, name="gender_preference_listing", values_callable=_enum_values),
         default=GenderPreference.ANY,
     )
     max_occupants: Mapped[int] = mapped_column(Integer, default=1)
@@ -445,9 +461,7 @@ class ListingImage(Base):
     listing: Mapped["Listing"] = relationship(back_populates="images")
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
 #  CHAT & MESSAGING
-# ═══════════════════════════════════════════════════════════════════════════════
 class ChatKey(Base):
     """
     Stores the user's public key for end-to-end encryption.
@@ -537,7 +551,7 @@ class Message(Base):
         String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
     message_type: Mapped[MessageType] = mapped_column(
-        Enum(MessageType, name="message_type"), default=MessageType.TEXT, nullable=False
+        Enum(MessageType, name="message_type", values_callable=_enum_values), default=MessageType.TEXT, nullable=False
     )
 
     # Encrypted payload — backend never knows plaintext
@@ -675,9 +689,7 @@ class BlockedUser(Base):
     )
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
 #  CALLS
-# ═══════════════════════════════════════════════════════════════════════════════
 class CallLog(Base):
     __tablename__ = "call_logs"
 
@@ -692,10 +704,10 @@ class CallLog(Base):
         String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
     call_type: Mapped[CallType] = mapped_column(
-        Enum(CallType, name="call_type"), nullable=False
+        Enum(CallType, name="call_type", values_callable=_enum_values), nullable=False
     )
     status: Mapped[CallStatus] = mapped_column(
-        Enum(CallStatus, name="call_status"), nullable=False, default=CallStatus.INITIATED
+        Enum(CallStatus, name="call_status", values_callable=_enum_values), nullable=False, default=CallStatus.INITIATED
     )
     started_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     ended_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
@@ -710,9 +722,7 @@ class CallLog(Base):
     )
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
 #  NOTIFICATIONS
-# ═══════════════════════════════════════════════════════════════════════════════
 class Notification(Base):
     __tablename__ = "notifications"
 
@@ -721,7 +731,7 @@ class Notification(Base):
         String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
     notification_type: Mapped[NotificationType] = mapped_column(
-        Enum(NotificationType, name="notification_type"), nullable=False
+        Enum(NotificationType, name="notification_type", values_callable=_enum_values), nullable=False
     )
     title: Mapped[str] = mapped_column(String(200), nullable=False)
     body: Mapped[str] = mapped_column(Text, nullable=False)

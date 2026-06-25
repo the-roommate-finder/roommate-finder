@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from fastapi import APIRouter, Query, status
 
 from app.api.v1.dependencies import CurrentUser, NotificationServiceDep

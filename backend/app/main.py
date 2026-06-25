@@ -56,7 +56,7 @@ def create_app() -> FastAPI:
         title=settings.APP_NAME,
         version=settings.APP_VERSION,
         description=(
-            "Production-ready marketplace backend for discovering compatible "
+            "PropTech marketplace backend for discovering compatible "
             "roommates and affordable shared living spaces."
         ),
         docs_url="/docs" if not settings.is_production else None,
@@ -72,7 +72,7 @@ def create_app() -> FastAPI:
     #  CORS 
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=settings.CORS_ORIGINS,
+        allow_origins=settings.cors_origins_list,
         allow_credentials=settings.CORS_ALLOW_CREDENTIALS,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -128,7 +128,7 @@ def create_app() -> FastAPI:
             },
         )
 
-    #  API Routers 
+    # API Routers 
     # Routers carry their own resource prefix (/auth, /users, etc.).
     # We prepend the API version prefix at inclusion time.
     v1 = settings.API_V1_PREFIX

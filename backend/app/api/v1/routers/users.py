@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from fastapi import APIRouter, HTTPException, UploadFile, status
 
 from app.api.v1.dependencies import (
@@ -65,7 +63,7 @@ async def upload_avatar(
     db: DbDep,
 ) -> UserPublicResponse:
     content_type = file.content_type or ""
-    if content_type not in settings.ALLOWED_IMAGE_TYPES:
+    if content_type not in settings.allowed_image_types_list:
         raise HTTPException(
             status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
             detail="Unsupported image type.",

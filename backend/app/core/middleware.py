@@ -96,6 +96,24 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         "form-action 'self';"
     )
 
+    # Swagger UI / ReDoc load their JS+CSS from the jsDelivr CDN and use an
+    # inline init script, so the docs routes need a relaxed CSP. These routes
+    # are only mounted outside production (see app factory), so this never
+    # loosens the policy for real API traffic.
+    _DOCS_CSP = (
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+        "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+        "img-src 'self' data: https:; "
+        "font-src 'self' https://cdn.jsdelivr.net; "
+        "worker-src 'self' blob:; "
+        "object-src 'none'; "
+        "base-uri 'self';"
+    )
+
+    # Paths whose responses serve the interactive API docs HTML.
+    _DOCS_PATHS = frozenset({"/docs", "/redoc", "/docs/oauth2-redirect"})
+
     async def dispatch(
         self,
         request: Request,
@@ -117,8 +135,11 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
             "geolocation=(), microphone=(self), camera=(self), "
             "payment=(), usb=(), magnetometer=(), gyroscope=()"
         )
-        # Content Security Policy
-        h["Content-Security-Policy"] = self._CSP
+        # Content Security Policy (relaxed for the CDN-backed docs pages)
+        if request.url.path in self._DOCS_PATHS:
+            h["Content-Security-Policy"] = self._DOCS_CSP
+        else:
+            h["Content-Security-Policy"] = self._CSP
         # HSTS — only in production (avoids breaking local HTTPS dev setups)
         if settings.is_production:
             h["Strict-Transport-Security"] = (

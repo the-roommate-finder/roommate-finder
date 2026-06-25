@@ -1,6 +1,4 @@
-from __future__ import annotations
-
-from fastapi import APIRouter, Query, status
+from fastapi import APIRouter, Query, Response, status
 
 from app.api.v1.dependencies import ChatServiceDep, CurrentUser
 from app.api.v1.schemas.schemas import (
@@ -73,7 +71,7 @@ async def get_conversation(
 
 @router.patch(
     "/conversations/{conversation_id}/settings",
-    status_code=status.HTTP_204_NO_CONTENT,
+    status_code=status.HTTP_200_OK,
     summary="Update conversation settings (mute, archive, pin)",
 )
 async def update_conversation_settings(
@@ -81,7 +79,7 @@ async def update_conversation_settings(
     body: ConversationSettingsRequest,
     current_user: CurrentUser,
     chat_service: ChatServiceDep,
-) -> None:
+) -> dict:
     await chat_service.update_conversation_settings(
         conversation_id,
         current_user,
@@ -89,6 +87,7 @@ async def update_conversation_settings(
         is_archived=body.is_archived,
         is_pinned=body.is_pinned,
     )
+    return {"message": "Settings updated."}
 
 
 #  Messages 
@@ -102,6 +101,7 @@ async def update_conversation_settings(
 @limiter.limit(CHAT_LIMIT)
 async def send_message(
     request: Request,
+    response: Response,
     conversation_id: str,
     body: SendMessageRequest,
     current_user: CurrentUser,
@@ -148,7 +148,7 @@ async def edit_message(
 
 @router.delete(
     "/conversations/{conversation_id}/messages/{message_id}",
-    status_code=status.HTTP_204_NO_CONTENT,
+    status_code=status.HTTP_200_OK,
     summary="Delete a message (soft delete)",
 )
 async def delete_message(
@@ -156,13 +156,14 @@ async def delete_message(
     message_id: str,
     current_user: CurrentUser,
     chat_service: ChatServiceDep,
-) -> None:
+) -> dict:
     await chat_service.delete_message(conversation_id, message_id, current_user)
+    return {"message": "Message deleted."}
 
 
 @router.post(
     "/conversations/{conversation_id}/messages/{message_id}/reactions",
-    status_code=status.HTTP_204_NO_CONTENT,
+    status_code=status.HTTP_200_OK,
     summary="Toggle emoji reaction on a message",
 )
 async def react_to_message(
@@ -171,10 +172,11 @@ async def react_to_message(
     body: ReactionRequest,
     current_user: CurrentUser,
     chat_service: ChatServiceDep,
-) -> None:
+) -> dict:
     await chat_service.react_to_message(
         conversation_id, message_id, body, current_user
     )
+    return {"message": "Reaction toggled."}
 
 
 #  E2EE Key Exchange 
@@ -209,7 +211,7 @@ async def get_user_chat_key(
 #  Block / Unblock 
 @router.post(
     "/block/{user_id}",
-    status_code=status.HTTP_204_NO_CONTENT,
+    status_code=status.HTTP_200_OK,
     summary="Block a user",
 )
 async def block_user(
@@ -217,18 +219,20 @@ async def block_user(
     current_user: CurrentUser,
     chat_service: ChatServiceDep,
     reason: str | None = Query(default=None, max_length=500),
-) -> None:
+) -> dict:
     await chat_service.block_user(current_user, user_id, reason)
+    return {"message": "User blocked."}
 
 
 @router.delete(
     "/block/{user_id}",
-    status_code=status.HTTP_204_NO_CONTENT,
+    status_code=status.HTTP_200_OK,
     summary="Unblock a user",
 )
 async def unblock_user(
     user_id: str,
     current_user: CurrentUser,
     chat_service: ChatServiceDep,
-) -> None:
+) -> dict:
     await chat_service.unblock_user(current_user, user_id)
+    return {"message": "User unblocked."}

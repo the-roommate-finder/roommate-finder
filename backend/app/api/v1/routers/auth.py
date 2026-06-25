@@ -1,6 +1,4 @@
-from __future__ import annotations
-
-from fastapi import APIRouter, Request, status
+from fastapi import APIRouter, Request, Response, status
 from fastapi.responses import JSONResponse
 
 from app.api.v1.dependencies import AuthServiceDep, CurrentUser
@@ -41,6 +39,7 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
 @limiter.limit(REGISTER_LIMIT)
 async def register(
     request: Request,
+    response: Response,
     body: RegisterRequest,
     auth_service: AuthServiceDep,
 ) -> RegisterResponse:
@@ -84,6 +83,7 @@ async def verify_email(
 @limiter.limit(OTP_RESEND_LIMIT)
 async def resend_otp(
     request: Request,
+    response: Response,
     body: ResendOTPRequest,
     auth_service: AuthServiceDep,
 ) -> MessageResponse:
@@ -111,6 +111,7 @@ async def resend_otp(
 @limiter.limit(LOGIN_LIMIT)
 async def login(
     request: Request,
+    response: Response,
     body: LoginRequest,
     auth_service: AuthServiceDep,
 ) -> LoginResponse:
