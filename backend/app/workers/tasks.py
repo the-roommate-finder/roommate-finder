@@ -1,29 +1,17 @@
 from __future__ import annotations
 
 import io
+import logging
+import structlog
 from typing import Optional
 
 import resend
-import structlog
 from celery import Celery
 from celery.schedules import crontab
-from celery.signals import setup_logging
 
 from app.core.config import settings
-from app.utils.logging import configure_logging
 
 logger = structlog.get_logger(__name__)
-
-
-@setup_logging.connect
-def _configure_worker_logging(**_: object) -> None:
-    """
-    Configure structlog in the Celery worker/beat process.
-
-    Connecting to ``setup_logging`` also tells Celery not to install its own
-    logging config, so the worker uses the same structured pipeline as the API.
-    """
-    configure_logging()
 
 #  Celery Application 
 celery_app = Celery(
@@ -378,4 +366,48 @@ def dispatch_notification(
         "notification_dispatched",
         user_id=user_id,
         notification_type=notification_type,
+    )
+
+
+@celery_app.task(
+    name="app.workers.tasks.send_password_reset_email",
+    bind=True,
+    max_retries=3,
+    default_retry_delay=10,
+    autoretry_for=(Exception,),
+)
+def send_password_reset_email(
+    self,
+    *,
+    user_email: str,
+    token: str,
+    expires_minutes: int,
+) -> None:
+    """Send password reset email with a tokenised link."""
+    reset_url = f"https://roommatefinder.com/reset-password?token={token}"
+
+    html = f"""
+    <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
+      <h2>Reset your password</h2>
+      <p>We received a request to reset your RoomMate Finder password.
+         This link expires in <strong>{expires_minutes} minutes</strong>.</p>
+      <a href="{reset_url}"
+         style="display: inline-block; padding: 14px 28px; background: #2563eb;
+                color: #fff; text-decoration: none; border-radius: 8px;
+                font-weight: bold; margin: 24px 0;">
+        Reset Password
+      </a>
+      <p style="color: #666; font-size: 14px;">
+        If you did not request a password reset, you can safely ignore this email.
+        Your password will not be changed.
+      </p>
+      <p style="color: #999; font-size: 12px;">
+        Or copy this link: {reset_url}
+      </p>
+    </div>
+    """
+    _send_email(
+        to=user_email,
+        subject="Reset your RoomMate Finder password",
+        html=html,
     )

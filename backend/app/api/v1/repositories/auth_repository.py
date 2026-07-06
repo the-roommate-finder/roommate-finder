@@ -72,3 +72,53 @@ class EmailVerificationRepository(BaseRepository[EmailVerification]):
             EmailVerification.user_id == user_id,
             EmailVerification.created_at >= since,
         )
+
+
+class PasswordResetRepository(BaseRepository["PasswordReset"]):
+    from app.api.v1.models.models import PasswordReset
+    model = PasswordReset
+
+    async def create_token(
+        self,
+        *,
+        user_id: str,
+        token_hash: str,
+        expires_at: "datetime",
+    ) -> "PasswordReset":
+        # Invalidate any previous unused tokens for this user
+        from sqlalchemy import update
+        await self.db.execute(
+            update(self.model)
+            .where(
+                self.model.user_id == user_id,
+                self.model.is_used == False,  # noqa: E712
+            )
+            .values(is_used=True)
+        )
+        return await self.create(
+            user_id=user_id,
+            token_hash=token_hash,
+            expires_at=expires_at,
+            is_used=False,
+        )
+
+    async def get_valid_by_hash(self, token_hash: str) -> "Optional[PasswordReset]":
+        from datetime import timezone
+        from sqlalchemy import select
+        now = datetime.now(timezone.utc)
+        result = await self.db.execute(
+            select(self.model).where(
+                self.model.token_hash == token_hash,
+                self.model.is_used == False,  # noqa: E712
+                self.model.expires_at > now,
+            )
+        )
+        return result.scalar_one_or_none()
+
+    async def mark_used(self, record: "PasswordReset") -> "PasswordReset":
+        from datetime import timezone
+        return await self.update(
+            record,
+            is_used=True,
+            used_at=datetime.now(timezone.utc),
+        )

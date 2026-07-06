@@ -32,10 +32,12 @@ from app.api.v1.schemas.schemas import (
 )
 from app.core.config import settings
 from app.core.security import (
+    _sha256_hex,
     create_access_token,
     decode_access_token,
     generate_otp,
     generate_refresh_token,
+    generate_secure_token,
     generate_session_id,
     hash_password,
     hash_refresh_token,
@@ -43,7 +45,7 @@ from app.core.security import (
     verify_otp,
     verify_password,
 )
-from app.workers.tasks import send_otp_email, send_security_alert_email
+from app.workers.tasks import send_otp_email, send_password_reset_email, send_security_alert_email
 
 logger = structlog.get_logger(__name__)
 
@@ -533,6 +535,91 @@ class AuthService:
                 return ", ".join(p for p in parts if p)
         except Exception:
             return None
+
+
+
+    #  Forgot Password 
+    async def forgot_password(self, email: str) -> dict:
+        """
+        Generate a password reset token and email it to the user.
+        Always returns the same response to prevent email enumeration.
+        """
+        from app.api.v1.repositories.auth_repository import PasswordResetRepository
+        from app.workers.tasks import send_password_reset_email
+
+        user = await self._users.get_by_email(email)
+
+        if user and user.is_active and user.is_email_verified:
+            raw_token = generate_secure_token(32)
+            token_hash = _sha256_hex(raw_token)
+
+            expires_at = datetime.now(timezone.utc) + timedelta(minutes=30)
+
+            pr_repo = PasswordResetRepository(self._users.db)
+            await pr_repo.create_token(
+                user_id=user.id,
+                token_hash=token_hash,
+                expires_at=expires_at,
+            )
+
+            send_password_reset_email.delay(
+                user_email=email,
+                token=raw_token,
+                expires_minutes=30,
+            )
+
+            logger.info("password_reset_requested", user_id=user.id)
+
+        # Always return same message — never reveal if email exists
+        return {
+            "message": (
+                "If an account with that email exists, "
+                "a password reset link has been sent."
+            )
+        }
+
+    async def reset_password(self, token: str, new_password: str) -> dict:
+        """
+        Validate the reset token and set the new password.
+        Revokes all sessions after a successful reset.
+        """
+        from app.api.v1.repositories.auth_repository import PasswordResetRepository
+
+        token_hash = _sha256_hex(token)
+        pr_repo = PasswordResetRepository(self._users.db)
+        record = await pr_repo.get_valid_by_hash(token_hash)
+
+        if not record:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid or expired reset token.",
+            )
+
+        user = await self._users.get_by_id(record.user_id)
+        if not user or not user.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid or expired reset token.",
+            )
+
+        # Set new password
+        await self._users.rehash_password(user, hash_password(new_password))
+
+        # Mark token as used
+        await pr_repo.mark_used(record)
+
+        # Revoke all sessions — force re-login everywhere
+        await self._rt.revoke_all_for_user(user.id)
+        await self._sessions.deactivate_user_sessions(user.id)
+
+        await self._security.log(
+            user_id=user.id,
+            event_type=SecurityEventType.PASSWORD_CHANGED,
+        )
+
+        logger.info("password_reset_completed", user_id=user.id)
+
+        return {"message": "Password reset successful. Please log in with your new password."}
 
 
 #  Standalone helpers 

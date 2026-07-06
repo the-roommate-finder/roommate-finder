@@ -15,7 +15,7 @@ from app.api.v1.schemas.schemas import (
     ChatKeyResponse,
     ConversationResponse,
     EditMessageRequest,
-    MessageResponse,
+    ChatMessageResponse,
     PaginatedResponse,
     ReactionRequest,
     SendMessageRequest,
@@ -139,7 +139,7 @@ class ChatService:
         conversation_id: str,
         data: SendMessageRequest,
         sender: User,
-    ) -> MessageResponse:
+    ) -> ChatMessageResponse:
         await self._get_conversation_or_raise(conversation_id, sender.id)
 
         # Validate reply target exists in same conversation
@@ -166,7 +166,7 @@ class ChatService:
         await self._convs.update_last_message_at(conversation_id)
         await self._participants.increment_unread(conversation_id, sender.id)
 
-        return MessageResponse.model_validate(message)
+        return ChatMessageResponse.model_validate(message)
 
     async def get_messages(
         self,
@@ -175,7 +175,7 @@ class ChatService:
         *,
         before_id: str | None = None,
         limit: int = 50,
-    ) -> list[MessageResponse]:
+    ) -> list[ChatMessageResponse]:
         await self._get_conversation_or_raise(conversation_id, user.id)
 
         messages = await self._msgs.get_conversation_messages(
@@ -184,7 +184,7 @@ class ChatService:
         # Mark as read
         await self._participants.mark_read(conversation_id, user.id)
 
-        return [MessageResponse.model_validate(m) for m in messages]
+        return [ChatMessageResponse.model_validate(m) for m in messages]
 
     async def edit_message(
         self,
@@ -192,7 +192,7 @@ class ChatService:
         message_id: str,
         data: EditMessageRequest,
         user: User,
-    ) -> MessageResponse:
+    ) -> ChatMessageResponse:
         await self._get_conversation_or_raise(conversation_id, user.id)
 
         message = await self._msgs.get_by_id_in_conversation(
@@ -212,7 +212,7 @@ class ChatService:
         updated = await self._msgs.edit_message(
             message, data.encrypted_content, data.encryption_nonce
         )
-        return MessageResponse.model_validate(updated)
+        return ChatMessageResponse.model_validate(updated)
 
     async def delete_message(
         self,

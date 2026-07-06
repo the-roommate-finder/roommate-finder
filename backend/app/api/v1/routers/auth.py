@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Request, Response, status
-from fastapi.responses import JSONResponse
 
 from app.api.v1.dependencies import AuthServiceDep, CurrentUser
 from app.api.v1.schemas.schemas import (
     ChangePasswordRequest,
+    ForgotPasswordRequest,
     LoginRequest,
     LoginResponse,
     LogoutRequest,
@@ -13,6 +13,7 @@ from app.api.v1.schemas.schemas import (
     RegisterRequest,
     RegisterResponse,
     ResendOTPRequest,
+    ResetPasswordRequest,
     VerifyEmailRequest,
 )
 from app.core.rate_limit import LOGIN_LIMIT, OTP_RESEND_LIMIT, REGISTER_LIMIT, limiter
@@ -25,16 +26,6 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
     response_model=RegisterResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Register a new user account",
-    description=(
-        "Creates a new user with email and password. "
-        "Sends a 6-digit OTP to the provided email. "
-        "The account is inactive until the OTP is verified."
-    ),
-    responses={
-        409: {"description": "Email already registered"},
-        422: {"description": "Validation error"},
-        429: {"description": "Rate limit exceeded"},
-    },
 )
 @limiter.limit(REGISTER_LIMIT)
 async def register(
@@ -50,15 +41,6 @@ async def register(
     "/verify-email",
     response_model=MessageResponse,
     summary="Verify email with OTP",
-    description=(
-        "Verifies the email address using the 6-digit OTP sent during registration. "
-        "The account is activated on success. Maximum 5 attempts per OTP."
-    ),
-    responses={
-        400: {"description": "Invalid or expired OTP"},
-        404: {"description": "User not found"},
-        429: {"description": "Max attempts exceeded"},
-    },
 )
 async def verify_email(
     body: VerifyEmailRequest,
@@ -72,13 +54,6 @@ async def verify_email(
     "/resend-otp",
     response_model=MessageResponse,
     summary="Resend email verification OTP",
-    description=(
-        "Issues a new OTP for an unverified account. "
-        "Previous OTPs are invalidated. Limited to 2 requests per 10 minutes."
-    ),
-    responses={
-        429: {"description": "Too many resend requests"},
-    },
 )
 @limiter.limit(OTP_RESEND_LIMIT)
 async def resend_otp(
@@ -95,18 +70,6 @@ async def resend_otp(
     "/login",
     response_model=LoginResponse,
     summary="Authenticate and obtain tokens",
-    description=(
-        "Authenticate with email and password. "
-        "Returns a JWT access token (15min) and a refresh token (7 days). "
-        "Account is locked after 3 consecutive failures for 60 minutes. "
-        "A security alert email is sent on lockout."
-    ),
-    responses={
-        401: {"description": "Invalid credentials"},
-        403: {"description": "Email not verified or account inactive"},
-        423: {"description": "Account locked"},
-        429: {"description": "Rate limit exceeded"},
-    },
 )
 @limiter.limit(LOGIN_LIMIT)
 async def login(
@@ -127,13 +90,6 @@ async def login(
     "/refresh",
     response_model=RefreshTokenResponse,
     summary="Rotate refresh token",
-    description=(
-        "Exchange a valid refresh token for a new access + refresh token pair. "
-        "The old refresh token is immediately revoked (rotation)."
-    ),
-    responses={
-        401: {"description": "Invalid or expired refresh token"},
-    },
 )
 async def refresh_tokens(
     body: RefreshTokenRequest,
@@ -146,10 +102,6 @@ async def refresh_tokens(
     "/logout",
     response_model=MessageResponse,
     summary="Revoke tokens and end session",
-    description=(
-        "Revokes the provided refresh token and blacklists the current access token. "
-        "Set `all_devices=true` to revoke all sessions across all devices."
-    ),
 )
 async def logout(
     body: LogoutRequest,
@@ -165,11 +117,7 @@ async def logout(
         access_token=raw_access,
     )
     return MessageResponse(
-        message=(
-            "Logged out from all devices."
-            if body.all_devices
-            else "Logged out successfully."
-        )
+        message="Logged out from all devices." if body.all_devices else "Logged out successfully."
     )
 
 
@@ -177,14 +125,6 @@ async def logout(
     "/change-password",
     response_model=MessageResponse,
     summary="Change account password",
-    description=(
-        "Change the authenticated user's password. "
-        "All existing sessions are revoked after a successful change."
-    ),
-    responses={
-        400: {"description": "Current password incorrect"},
-        401: {"description": "Not authenticated"},
-    },
 )
 async def change_password(
     body: ChangePasswordRequest,
@@ -196,6 +136,38 @@ async def change_password(
         body.current_password,
         body.new_password,
     )
-    return MessageResponse(
-        message="Password changed successfully. Please log in again."
+    return MessageResponse(message="Password changed successfully. Please log in again.")
+
+
+@router.post(
+    "/forgot-password",
+    response_model=MessageResponse,
+    summary="Request password reset",
+    description="Sends a reset link to the email if an active account exists. Token expires in 30 minutes.",
+)
+@limiter.limit(REGISTER_LIMIT)
+async def forgot_password(
+    request: Request,
+    response: Response,
+    body: ForgotPasswordRequest,
+    auth_service: AuthServiceDep,
+) -> MessageResponse:
+    result = await auth_service.forgot_password(email=body.email)
+    return MessageResponse(message=result["message"])
+
+
+@router.post(
+    "/reset-password",
+    response_model=MessageResponse,
+    summary="Reset password using token",
+    responses={400: {"description": "Invalid or expired token"}},
+)
+async def reset_password(
+    body: ResetPasswordRequest,
+    auth_service: AuthServiceDep,
+) -> MessageResponse:
+    result = await auth_service.reset_password(
+        token=body.token,
+        new_password=body.new_password,
     )
+    return MessageResponse(message=result["message"])

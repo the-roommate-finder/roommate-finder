@@ -1,4 +1,4 @@
-from fastapi import APIRouter, File, Query, Request, Response, UploadFile, status
+from fastapi import Response, APIRouter, File, Query, Request, UploadFile, status
 
 from app.api.v1.dependencies import CurrentUser, ListingServiceDep
 from app.api.v1.models.models import GenderPreference, PropertyType

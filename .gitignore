@@ -1,4 +1,4 @@
-#  Python 
+# Python 
 __pycache__/
 *.py[cod]
 *.pyo
@@ -15,13 +15,13 @@ develop-eggs/
 lib/
 lib64/
 
-#  Virtual Environment 
+# Virtual Environment 
 .venv/
 venv/
 env/
 ENV/
 
-#  Environment & Secrets 
+# Environment & Secrets 
 .env
 .env.*
 !.env.example
@@ -30,44 +30,44 @@ ENV/
 *.sqlite3
 *.db
 
-#  Testing & Coverage 
+# esting & Coverage 
 .pytest_cache/
 .coverage
 htmlcov/
 coverage.xml
 *.cover
 
-#  Alembic 
+# Alembic 
 alembic/versions/*.pyc
 
 #  Logs 
 *.log
 logs/
 
-#  Celery 
+# Celery 
 celerybeat-schedule
 celerybeat.pid
 
-#  Storage / Uploads 
+# Storage / Uploads 
 media/
 uploads/
 
-#  GeoIP 
+# GeoIP 
 *.mmdb
 
-#  IDE 
+# IDE 
 .vscode/
 .idea/
 *.swp
 *.swo
 .DS_Store
 
-#  Docker 
+# Docker 
 docker-compose.override.yml
 
-#  Mypy 
+# Mypy 
 .mypy_cache/
 .dmypy.json
 
-#  Ruff 
+# Ruff 
 .ruff_cache/

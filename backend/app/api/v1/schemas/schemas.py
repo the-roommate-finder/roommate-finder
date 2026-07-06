@@ -386,7 +386,7 @@ class SendMessageRequest(BaseModel):
     reply_to_id: Optional[str] = None
 
 
-class MessageResponse(BaseModel):
+class ChatMessageResponse(BaseModel):
     model_config = _orm_config
 
     id: str
@@ -502,3 +502,30 @@ class ReadinessResponse(BaseModel):
     database: bool
     redis: bool
     version: str
+
+
+#  PASSWORD RESET SCHEMAS
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+    @field_validator("email", mode="before")
+    @classmethod
+    def normalise_email(cls, v: str) -> str:
+        return v.strip().lower()
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str = Field(min_length=10)
+    new_password: str = Field(min_length=6, max_length=50)
+
+    @field_validator("new_password")
+    @classmethod
+    def validate_password_strength(cls, v: str) -> str:
+        import re
+        pattern = re.compile(r"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{6,50}$")
+        if not pattern.match(v):
+            raise ValueError(
+                "Password must be 6-50 characters and contain at least "
+                "one uppercase letter, one lowercase letter, and one digit."
+            )
+        return v

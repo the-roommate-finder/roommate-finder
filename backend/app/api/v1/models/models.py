@@ -92,7 +92,7 @@ class SecurityEventType(str, enum.Enum):
     SUSPICIOUS_ACTIVITY = "suspicious_activity"
 
 
-# RMF User ID Sequence 
+#  RMF User ID Sequence 
 # PostgreSQL sequence that drives the RMF-XXXXXX user IDs.
 # Defined here so Alembic autogenerate picks it up alongside the table.
 rmf_user_seq = Sequence("rmf_user_seq", start=1, increment=1)
@@ -101,15 +101,6 @@ rmf_user_seq = Sequence("rmf_user_seq", start=1, increment=1)
 def _uuid() -> str:
     """Still used for non-user PKs (conversations, messages, etc.)."""
     return str(uuid.uuid4())
-
-
-def _enum_values(enum_cls):
-    """
-    Persist the enum *value* (e.g. "seeker") rather than the member *name*
-    (e.g. "SEEKER"). The PostgreSQL enum types and API schemas use the
-    lowercase values, so SQLAlchemy must store/read those.
-    """
-    return [member.value for member in enum_cls]
 
 
 def _utcnow() -> datetime:
@@ -124,9 +115,6 @@ class User(Base):
     id: Mapped[str] = mapped_column(
         String(12),       # e.g. RMF-000001  (prefix=4 + dash=1 + digits=6 + null=1 → 12 max)
         primary_key=True,
-        # The id is generated entirely in PostgreSQL via server_default; SQLAlchemy
-        # fetches it back with RETURNING. (A Python-side default cannot run SQL under
-        # the async asyncpg driver — it has no get_bind().)
         server_default=text("'RMF-' || lpad(nextval('rmf_user_seq')::text, 6, '0')"),
         index=True,
     )
@@ -135,7 +123,7 @@ class User(Base):
     )
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
     role: Mapped[UserRole] = mapped_column(
-        Enum(UserRole, name="user_role", values_callable=_enum_values), default=UserRole.SEEKER, nullable=False
+        Enum(UserRole, name="user_role", values_callable=lambda x: [e.value for e in x]), default=UserRole.SEEKER, nullable=False
     )
 
     # Profile
@@ -144,7 +132,7 @@ class User(Base):
     avatar_url: Mapped[Optional[str]] = mapped_column(String(500))
     phone_number: Mapped[Optional[str]] = mapped_column(String(20))
     gender: Mapped[Optional[GenderPreference]] = mapped_column(
-        Enum(GenderPreference, name="gender_preference", values_callable=_enum_values)
+        Enum(GenderPreference, name="gender_preference", values_callable=lambda x: [e.value for e in x])
     )
     date_of_birth: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
 
@@ -353,7 +341,7 @@ class SecurityEvent(Base):
         String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
     )
     event_type: Mapped[SecurityEventType] = mapped_column(
-        Enum(SecurityEventType, name="security_event_type", values_callable=_enum_values), nullable=False
+        Enum(SecurityEventType, name="security_event_type", values_callable=lambda x: [e.value for e in x]), nullable=False
     )
     ip_address: Mapped[Optional[str]] = mapped_column(String(45))
     user_agent: Mapped[Optional[str]] = mapped_column(String(500))
@@ -384,7 +372,7 @@ class Listing(Base):
     title: Mapped[str] = mapped_column(String(200), nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False)
     property_type: Mapped[PropertyType] = mapped_column(
-        Enum(PropertyType, name="property_type", values_callable=_enum_values), nullable=False
+        Enum(PropertyType, name="property_type", values_callable=lambda x: [e.value for e in x]), nullable=False
     )
 
     # Location
@@ -402,7 +390,7 @@ class Listing(Base):
 
     # Preferences
     gender_preference: Mapped[GenderPreference] = mapped_column(
-        Enum(GenderPreference, name="gender_preference_listing", values_callable=_enum_values),
+        Enum(GenderPreference, name="gender_preference_listing", values_callable=lambda x: [e.value for e in x]),
         default=GenderPreference.ANY,
     )
     max_occupants: Mapped[int] = mapped_column(Integer, default=1)
@@ -551,7 +539,7 @@ class Message(Base):
         String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
     message_type: Mapped[MessageType] = mapped_column(
-        Enum(MessageType, name="message_type", values_callable=_enum_values), default=MessageType.TEXT, nullable=False
+        Enum(MessageType, name="message_type", values_callable=lambda x: [e.value for e in x]), default=MessageType.TEXT, nullable=False
     )
 
     # Encrypted payload — backend never knows plaintext
@@ -704,10 +692,10 @@ class CallLog(Base):
         String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
     call_type: Mapped[CallType] = mapped_column(
-        Enum(CallType, name="call_type", values_callable=_enum_values), nullable=False
+        Enum(CallType, name="call_type", values_callable=lambda x: [e.value for e in x]), nullable=False
     )
     status: Mapped[CallStatus] = mapped_column(
-        Enum(CallStatus, name="call_status", values_callable=_enum_values), nullable=False, default=CallStatus.INITIATED
+        Enum(CallStatus, name="call_status", values_callable=lambda x: [e.value for e in x]), nullable=False, default=CallStatus.INITIATED
     )
     started_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     ended_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
@@ -731,7 +719,7 @@ class Notification(Base):
         String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
     notification_type: Mapped[NotificationType] = mapped_column(
-        Enum(NotificationType, name="notification_type", values_callable=_enum_values), nullable=False
+        Enum(NotificationType, name="notification_type", values_callable=lambda x: [e.value for e in x]), nullable=False
     )
     title: Mapped[str] = mapped_column(String(200), nullable=False)
     body: Mapped[str] = mapped_column(Text, nullable=False)
@@ -746,4 +734,28 @@ class Notification(Base):
 
     __table_args__ = (
         Index("ix_notifications_user_unread", "user_id", "is_read", "created_at"),
+    )
+
+
+#  PASSWORD RESET
+class PasswordReset(Base):
+    __tablename__ = "password_resets"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    user_id: Mapped[str] = mapped_column(
+        String(12), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    is_used: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    used_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+
+    user: Mapped["User"] = relationship()
+
+    __table_args__ = (
+        Index("ix_password_resets_token", "token_hash"),
+        Index("ix_password_resets_user", "user_id", "is_used"),
     )

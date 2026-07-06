@@ -1,11 +1,12 @@
 FROM python:3.12-slim AS base
 
-# Install system dependencies
+# Install system dependencies using pre-built binaries (no compilation needed)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc \
+    libpq5 \
     libpq-dev \
     libmagic1 \
     curl \
+    gcc \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -29,7 +30,6 @@ CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload
 #  Production stage 
 FROM base AS production
 
-# Create non-root user
 RUN groupadd -r appuser && useradd -r -g appuser appuser
 
 COPY --chown=appuser:appuser . .
@@ -40,7 +40,6 @@ ENV PYTHONUNBUFFERED=1
 
 USER appuser
 
-# Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
 

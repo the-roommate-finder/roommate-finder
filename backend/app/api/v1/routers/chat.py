@@ -8,7 +8,7 @@ from app.api.v1.schemas.schemas import (
     ConversationResponse,
     ConversationSettingsRequest,
     EditMessageRequest,
-    MessageResponse,
+    ChatMessageResponse,
     PaginatedResponse,
     ReactionRequest,
     SendMessageRequest,
@@ -93,7 +93,7 @@ async def update_conversation_settings(
 #  Messages 
 @router.post(
     "/conversations/{conversation_id}/messages",
-    response_model=MessageResponse,
+    response_model=ChatMessageResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Send a message",
     description="Message content must be client-side encrypted. Backend stores only ciphertext.",
@@ -106,13 +106,13 @@ async def send_message(
     body: SendMessageRequest,
     current_user: CurrentUser,
     chat_service: ChatServiceDep,
-) -> MessageResponse:
+) -> ChatMessageResponse:
     return await chat_service.send_message(conversation_id, body, current_user)
 
 
 @router.get(
     "/conversations/{conversation_id}/messages",
-    response_model=list[MessageResponse],
+    response_model=list[ChatMessageResponse],
     summary="Get conversation messages",
     description="Cursor-based pagination via `before_id`. Returns up to 100 messages.",
 )
@@ -122,7 +122,7 @@ async def get_messages(
     chat_service: ChatServiceDep,
     before_id: str | None = Query(default=None),
     limit: int = Query(default=50, ge=1, le=100),
-) -> list[MessageResponse]:
+) -> list[ChatMessageResponse]:
     return await chat_service.get_messages(
         conversation_id, current_user, before_id=before_id, limit=limit
     )
@@ -130,7 +130,7 @@ async def get_messages(
 
 @router.patch(
     "/conversations/{conversation_id}/messages/{message_id}",
-    response_model=MessageResponse,
+    response_model=ChatMessageResponse,
     summary="Edit a message",
     description="Only the original sender may edit. New encrypted content required.",
 )
@@ -140,7 +140,7 @@ async def edit_message(
     body: EditMessageRequest,
     current_user: CurrentUser,
     chat_service: ChatServiceDep,
-) -> MessageResponse:
+) -> ChatMessageResponse:
     return await chat_service.edit_message(
         conversation_id, message_id, body, current_user
     )
