@@ -1,3 +1,22 @@
+"""
+app/workers/tasks.py
+
+Celery task definitions for background jobs.
+
+Workers run in a separate process from the API server.
+They share the same codebase but do NOT use async SQLAlchemy —
+they use sync connections managed by Celery itself.
+
+Tasks defined here:
+  - send_otp_email
+  - send_security_alert_email
+  - send_password_reset_email
+  - generate_thumbnail
+  - cleanup_expired_tokens
+  - cleanup_expired_otps
+  - cleanup_stale_sessions
+  - dispatch_notification
+"""
 from __future__ import annotations
 
 import io
@@ -33,6 +52,7 @@ celery_app.conf.update(
     task_routes={
         "app.workers.tasks.send_otp_email": {"queue": "email"},
         "app.workers.tasks.send_security_alert_email": {"queue": "email"},
+        "app.workers.tasks.send_password_reset_email": {"queue": "email"},
         "app.workers.tasks.generate_thumbnail": {"queue": "media"},
         "app.workers.tasks.cleanup_expired_tokens": {"queue": "maintenance"},
         "app.workers.tasks.cleanup_expired_otps": {"queue": "maintenance"},
@@ -384,7 +404,7 @@ def send_password_reset_email(
     expires_minutes: int,
 ) -> None:
     """Send password reset email with a tokenised link."""
-    reset_url = f"https://roommatefinder.com/reset-password?token={token}"
+    reset_url = f"{settings.FRONTEND_URL}/reset-password?token={token}"
 
     html = f"""
     <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">

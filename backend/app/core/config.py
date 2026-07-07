@@ -113,6 +113,9 @@ class Settings(BaseSettings):
     #  GeoIP 
     GEOIP_DB_PATH: str = "/app/data/GeoLite2-City.mmdb"
 
+    #  Frontend
+    FRONTEND_URL: str = "http://localhost:3000"
+
     #  Uploads 
     MAX_UPLOAD_SIZE_MB: int = 10
     VOICE_NOTE_MAX_DURATION_SECONDS: int = 300
