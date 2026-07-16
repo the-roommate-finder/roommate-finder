@@ -58,11 +58,32 @@ _PASSWORD_PATTERN = re.compile(
 class RegisterRequest(BaseModel):
     email: EmailStr
     password: str = Field(min_length=6, max_length=50)
+    display_name: Optional[str] = Field(default=None, max_length=100)
+    phone_number: Optional[str] = Field(default=None, max_length=20)
+    role: UserRole = UserRole.SEEKER
 
     @field_validator("email", mode="before")
     @classmethod
     def normalise_email(cls, v: str) -> str:
         return v.strip().lower()
+
+    @field_validator("display_name")
+    @classmethod
+    def strip_display_name(cls, v: Optional[str]) -> Optional[str]:
+        return v.strip() if v else None
+
+    @field_validator("phone_number")
+    @classmethod
+    def strip_phone_number(cls, v: Optional[str]) -> Optional[str]:
+        return v.strip() if v else None
+
+    @field_validator("role")
+    @classmethod
+    def restrict_signup_role(cls, v: UserRole) -> UserRole:
+        # Admin accounts are provisioned out-of-band, never through public signup.
+        if v == UserRole.ADMIN:
+            raise ValueError("role must be 'seeker' or 'lister'.")
+        return v
 
     @field_validator("password")
     @classmethod
@@ -81,6 +102,8 @@ class RegisterResponse(BaseModel):
     id: str
     email: str
     role: UserRole
+    display_name: Optional[str] = None
+    phone_number: Optional[str] = None
     is_email_verified: bool
     created_at: datetime
     message: str = "Registration successful. Please check your email for the verification OTP."
@@ -105,15 +128,57 @@ class ResendOTPRequest(BaseModel):
         return v.strip().lower()
 
 
+_PHONE_PATTERN = re.compile(r"^\+?[0-9]{7,15}$")
+
+
+class SendPhoneOTPRequest(BaseModel):
+    phone_number: str = Field(min_length=7, max_length=20)
+
+    @field_validator("phone_number")
+    @classmethod
+    def validate_phone(cls, v: str) -> str:
+        cleaned = v.strip().replace(" ", "").replace("-", "")
+        if not _PHONE_PATTERN.match(cleaned):
+            raise ValueError("Enter a valid phone number.")
+        return cleaned
+
+
+class VerifyPhoneOTPRequest(BaseModel):
+    phone_number: str = Field(min_length=7, max_length=20)
+    otp: str = Field(min_length=6, max_length=6, pattern=r"^\d{6}$")
+
+    @field_validator("phone_number")
+    @classmethod
+    def validate_phone(cls, v: str) -> str:
+        cleaned = v.strip().replace(" ", "").replace("-", "")
+        if not _PHONE_PATTERN.match(cleaned):
+            raise ValueError("Enter a valid phone number.")
+        return cleaned
+
+
 class LoginRequest(BaseModel):
-    email: EmailStr
+    email: Optional[EmailStr] = None
+    phone_number: Optional[str] = None
     password: str
     device_name: Optional[str] = Field(default=None, max_length=200)
 
     @field_validator("email", mode="before")
     @classmethod
-    def normalise_email(cls, v: str) -> str:
-        return v.strip().lower()
+    def normalise_email(cls, v: Optional[str]) -> Optional[str]:
+        return v.strip().lower() if v else v
+
+    @field_validator("phone_number")
+    @classmethod
+    def normalise_phone(cls, v: Optional[str]) -> Optional[str]:
+        return v.strip().replace(" ", "").replace("-", "") if v else v
+
+    @model_validator(mode="after")
+    def require_one_identifier(self) -> "LoginRequest":
+        if not self.email and not self.phone_number:
+            raise ValueError("Provide either an email address or a phone number.")
+        if self.email and self.phone_number:
+            raise ValueError("Provide only one of email or phone number, not both.")
+        return self
 
 
 class LoginResponse(BaseModel):
@@ -178,6 +243,8 @@ class UserPublicResponse(BaseModel):
     display_name: Optional[str] = None
     bio: Optional[str] = None
     avatar_url: Optional[str] = None
+    phone_number: Optional[str] = None
+    is_phone_verified: bool = False
     gender: Optional[GenderPreference] = None
     is_active: bool
     is_email_verified: bool

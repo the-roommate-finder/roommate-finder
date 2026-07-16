@@ -15,7 +15,10 @@ from app.api.v1.models.models import (
     User,
     UserRole,
 )
-from app.api.v1.repositories.auth_repository import EmailVerificationRepository
+from app.api.v1.repositories.auth_repository import (
+    EmailVerificationRepository,
+    PhoneVerificationRepository,
+)
 from app.api.v1.repositories.user_repository import (
     DeviceRepository,
     LoginAttemptRepository,
@@ -45,7 +48,12 @@ from app.core.security import (
     verify_otp,
     verify_password,
 )
-from app.workers.tasks import send_otp_email, send_password_reset_email, send_security_alert_email
+from app.workers.tasks import (
+    send_otp_email,
+    send_otp_sms,
+    send_password_reset_email,
+    send_security_alert_email,
+)
 
 logger = structlog.get_logger(__name__)
 
@@ -61,6 +69,7 @@ class AuthService:
         self,
         user_repo: UserRepository,
         ev_repo: EmailVerificationRepository,
+        pv_repo: PhoneVerificationRepository,
         attempt_repo: LoginAttemptRepository,
         session_repo: UserSessionRepository,
         rt_repo: RefreshTokenRepository,
@@ -70,6 +79,7 @@ class AuthService:
     ) -> None:
         self._users = user_repo
         self._ev = ev_repo
+        self._pv = pv_repo
         self._attempts = attempt_repo
         self._sessions = session_repo
         self._rt = rt_repo
@@ -78,10 +88,18 @@ class AuthService:
         self._redis = redis
 
     #  Registration 
-    async def register(self, email: str, password: str) -> RegisterResponse:
+    async def register(
+        self,
+        email: str,
+        password: str,
+        *,
+        display_name: Optional[str] = None,
+        phone_number: Optional[str] = None,
+        role: UserRole = UserRole.SEEKER,
+    ) -> RegisterResponse:
         """
         Create a new user account and send OTP verification email.
-        Raises 409 if email already exists.
+        Raises 409 if email (or phone number, if provided) already exists.
         """
         if await self._users.email_exists(email):
             raise HTTPException(
@@ -89,17 +107,31 @@ class AuthService:
                 detail="An account with this email already exists.",
             )
 
+        if phone_number and await self._users.phone_exists(phone_number):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="An account with this phone number already exists.",
+            )
+
         hashed = hash_password(password)
-        user = await self._users.create_user(email=email, hashed_password=hashed)
+        user = await self._users.create_user(
+            email=email,
+            hashed_password=hashed,
+            role=role,
+            display_name=display_name,
+            phone_number=phone_number,
+        )
 
         await self._send_otp(user)
 
-        logger.info("user_registered", user_id=user.id, email=email)
+        logger.info("user_registered", user_id=user.id, email=email, role=role.value)
 
         return RegisterResponse(
             id=user.id,
             email=user.email,
             role=user.role,
+            display_name=user.display_name,
+            phone_number=user.phone_number,
             is_email_verified=user.is_email_verified,
             created_at=user.created_at,
         )
@@ -176,19 +208,111 @@ class AuthService:
         await self._send_otp(user)
         return {"message": "A new OTP has been sent to your email."}
 
+    #  Phone Verification 
+    async def send_phone_otp(self, phone_number: str) -> dict:
+        """
+        Issue an OTP for a phone number captured at registration.
+        Public endpoint, keyed by phone number — mirrors resend_otp for email.
+        Enforces the same resend rate limit.
+        """
+        user = await self._users.get_by_phone(phone_number)
+        if not user:
+            # Don't reveal existence
+            return {"message": "If that phone number is on an account, a code has been sent."}
+        if user.is_phone_verified:
+            return {"message": "Phone number is already verified."}
+
+        ten_min_ago = datetime.now(timezone.utc) - timedelta(minutes=10)
+        recent = await self._pv.count_recent_resends(user.id, phone_number, since=ten_min_ago)
+        if recent >= 2:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Too many OTP requests. Please wait before requesting another.",
+            )
+
+        await self._pv.invalidate_previous(user.id, phone_number)
+
+        plain_otp, otp_hash = generate_otp()
+        expires_at = datetime.now(timezone.utc) + timedelta(minutes=settings.OTP_EXPIRE_MINUTES)
+        await self._pv.create_otp(
+            user_id=user.id,
+            phone_number=phone_number,
+            otp_hash=otp_hash,
+            expires_at=expires_at,
+        )
+
+        send_otp_sms.delay(
+            phone_number=phone_number,
+            otp=plain_otp,
+            expires_minutes=settings.OTP_EXPIRE_MINUTES,
+        )
+
+        return {"message": "A verification code has been sent to your phone number."}
+
+    async def verify_phone_otp(self, phone_number: str, otp: str) -> dict:
+        """
+        Validate the OTP and mark the phone number as verified.
+        Enforces max-attempts and expiry, same as email verification.
+        """
+        user = await self._users.get_by_phone(phone_number)
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="No account found with this phone number.",
+            )
+        if user.is_phone_verified:
+            return {"message": "Phone number is already verified."}
+
+        record = await self._pv.get_latest_unused(user.id, phone_number)
+        if not record:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No active OTP found. Please request a new one.",
+            )
+
+        if record.attempts >= settings.OTP_MAX_ATTEMPTS:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Maximum verification attempts reached. Please request a new OTP.",
+            )
+
+        await self._pv.increment_attempts(record)
+
+        if not verify_otp(otp, record.otp_hash):
+            remaining = settings.OTP_MAX_ATTEMPTS - record.attempts - 1
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid OTP. {remaining} attempt(s) remaining.",
+            )
+
+        await self._pv.mark_used(record)
+        await self._users.activate_phone(user)
+
+        await self._security.log(
+            user_id=user.id,
+            event_type=SecurityEventType.OTP_VERIFIED,
+        )
+
+        logger.info("phone_verified", user_id=user.id)
+        return {"message": "Phone number verified successfully."}
+
     #  Login 
     async def login(
         self,
-        email: str,
         password: str,
         *,
+        email: Optional[str] = None,
+        phone_number: Optional[str] = None,
         request: Request,
         device_name: Optional[str] = None,
     ) -> LoginResponse:
         """
-        Authenticate a user and issue access + refresh tokens.
-        Tracks attempts, enforces lockout, records device.
+        Authenticate a user by email or phone number, and issue access +
+        refresh tokens. Tracks attempts, enforces lockout, records device.
         """
+        identifier = email or phone_number
+        assert identifier, "login() requires either email or phone_number"
+
         ip = _get_client_ip(request)
         ua_string = request.headers.get("User-Agent", "")
         ua = parse_ua(ua_string)
@@ -196,7 +320,7 @@ class AuthService:
         device_fp = _device_fingerprint(ip, ua_string)
 
         #  Check lockout 
-        lockout_key = f"{_LOCKOUT_PREFIX}{email}"
+        lockout_key = f"{_LOCKOUT_PREFIX}{identifier}"
         is_locked = await self._redis.get(lockout_key)
         if is_locked:
             ttl = await self._redis.ttl(lockout_key)
@@ -214,12 +338,16 @@ class AuthService:
             )
 
         #  Validate credentials 
-        user = await self._users.get_by_email(email)
+        user = (
+            await self._users.get_by_email(email)
+            if email
+            else await self._users.get_by_phone(phone_number)  # type: ignore[arg-type]
+        )
 
         if not user or not verify_password(password, user.hashed_password):
             await self._handle_failed_login(
                 user=user,
-                email=email,
+                email=identifier,
                 ip=ip,
                 ua_string=ua_string,
                 device_fp=device_fp,
@@ -227,22 +355,22 @@ class AuthService:
                 reason="invalid_credentials",
             )
             # Fail count for user-facing message
-            fail_key = f"{_FAIL_COUNT_PREFIX}{email}"
+            fail_key = f"{_FAIL_COUNT_PREFIX}{identifier}"
             fail_count = int(await self._redis.get(fail_key) or 0)
             remaining = max(0, settings.LOGIN_MAX_ATTEMPTS - fail_count)
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail={
                     "error": "authentication_failed",
-                    "message": "Invalid email or password.",
+                    "message": "Invalid credentials.",
                     "attempts_remaining": remaining,
                 },
             )
 
-        if not user.is_email_verified:
+        if not user.is_email_verified and not user.is_phone_verified:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Please verify your email address before logging in.",
+                detail="Please verify your account before logging in.",
             )
 
         if not user.is_active:
@@ -257,8 +385,8 @@ class AuthService:
 
         #  Clear failure counters 
         await self._redis.delete(
-            f"{_FAIL_COUNT_PREFIX}{email}",
-            f"{_LOCKOUT_PREFIX}{email}",
+            f"{_FAIL_COUNT_PREFIX}{identifier}",
+            f"{_LOCKOUT_PREFIX}{identifier}",
         )
 
         #  Record device 
@@ -303,7 +431,7 @@ class AuthService:
         #  Record success 
         await self._attempts.create_attempt(
             user_id=user.id,
-            email=email,
+            email=identifier,
             ip_address=ip,
             user_agent=ua_string,
             device_fingerprint=device_fp,

@@ -84,6 +84,15 @@ class Settings(BaseSettings):
     EMAIL_FROM: EmailStr = "noreply@roommatefinder.com"  # type: ignore[assignment]
     EMAIL_FROM_NAME: str = "RoomMate Finder"
 
+    #  SMS (phone OTP) 
+    # Termii is a common Nigerian SMS/OTP provider; swap _send_sms in
+    # workers/tasks.py for a different provider if needed — these settings
+    # are intentionally provider-agnostic aside from the name.
+    SMS_PROVIDER: str = "termii"
+    SMS_API_KEY: str = ""
+    SMS_SENDER_ID: str = "RmmateFinder"
+    SMS_BASE_URL: str = "https://api.ng.termii.com/api/sms/send"
+
     #  Object Storage 
     S3_ENDPOINT_URL: str = "https://s3.amazonaws.com"
     S3_ACCESS_KEY_ID: str = ""

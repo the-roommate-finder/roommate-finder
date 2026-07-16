@@ -10,7 +10,10 @@ from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.models.models import User, UserRole
-from app.api.v1.repositories.auth_repository import EmailVerificationRepository
+from app.api.v1.repositories.auth_repository import (
+    EmailVerificationRepository,
+    PhoneVerificationRepository,
+)
 from app.api.v1.repositories.chat_repository import (
     BlockedUserRepository,
     ChatKeyRepository,
@@ -56,6 +59,7 @@ def get_auth_service(db: DbDep, redis: RedisDep) -> AuthService:
     return AuthService(
         user_repo=UserRepository(db),
         ev_repo=EmailVerificationRepository(db),
+        pv_repo=PhoneVerificationRepository(db),
         attempt_repo=LoginAttemptRepository(db),
         session_repo=UserSessionRepository(db),
         rt_repo=RefreshTokenRepository(db),

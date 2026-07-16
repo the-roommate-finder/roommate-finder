@@ -53,6 +53,7 @@ celery_app.conf.update(
         "app.workers.tasks.send_otp_email": {"queue": "email"},
         "app.workers.tasks.send_security_alert_email": {"queue": "email"},
         "app.workers.tasks.send_password_reset_email": {"queue": "email"},
+        "app.workers.tasks.send_otp_sms": {"queue": "sms"},
         "app.workers.tasks.generate_thumbnail": {"queue": "media"},
         "app.workers.tasks.cleanup_expired_tokens": {"queue": "maintenance"},
         "app.workers.tasks.cleanup_expired_otps": {"queue": "maintenance"},
@@ -92,6 +93,33 @@ def _send_email(*, to: str, subject: str, html: str) -> None:
         })
     except Exception as exc:
         logger.error("email_send_failed", exc_info=exc, to=to, subject=subject)
+        raise
+
+
+#  SMS helpers 
+def _send_sms(*, to: str, message: str) -> None:
+    """
+    Send an SMS via the configured provider (Termii by default).
+    Never called directly — always via a Celery task.
+    """
+    import httpx
+
+    try:
+        response = httpx.post(
+            settings.SMS_BASE_URL,
+            json={
+                "to": to,
+                "from": settings.SMS_SENDER_ID,
+                "sms": message,
+                "type": "plain",
+                "channel": "generic",
+                "api_key": settings.SMS_API_KEY,
+            },
+            timeout=10.0,
+        )
+        response.raise_for_status()
+    except Exception as exc:
+        logger.error("sms_send_failed", exc_info=exc, to=to)
         raise
 
 
@@ -135,6 +163,32 @@ def send_otp_email(
         subject="Your RoomMate Finder verification code",
         html=html,
     )
+
+
+@celery_app.task(
+    name="app.workers.tasks.send_otp_sms",
+    bind=True,
+    max_retries=3,
+    default_retry_delay=10,
+    autoretry_for=(Exception,),
+)
+def send_otp_sms(
+    self,
+    *,
+    phone_number: str,
+    otp: str,
+    expires_minutes: int,
+) -> None:
+    """
+    Send OTP verification SMS.
+    SECURITY: OTP value is passed as a task argument — ensure Celery result
+    backend and broker are secured (Redis with AUTH, TLS).
+    """
+    message = (
+        f"Your RoomMate Finder verification code is {otp}. "
+        f"It expires in {expires_minutes} minutes. Never share this code."
+    )
+    _send_sms(to=phone_number, message=message)
 
 
 @celery_app.task(

@@ -14,7 +14,9 @@ from app.api.v1.schemas.schemas import (
     RegisterResponse,
     ResendOTPRequest,
     ResetPasswordRequest,
+    SendPhoneOTPRequest,
     VerifyEmailRequest,
+    VerifyPhoneOTPRequest,
 )
 from app.core.rate_limit import LOGIN_LIMIT, OTP_RESEND_LIMIT, REGISTER_LIMIT, limiter
 
@@ -34,7 +36,13 @@ async def register(
     body: RegisterRequest,
     auth_service: AuthServiceDep,
 ) -> RegisterResponse:
-    return await auth_service.register(email=body.email, password=body.password)
+    return await auth_service.register(
+        email=body.email,
+        password=body.password,
+        display_name=body.display_name,
+        phone_number=body.phone_number,
+        role=body.role,
+    )
 
 
 @router.post(
@@ -67,6 +75,35 @@ async def resend_otp(
 
 
 @router.post(
+    "/send-phone-otp",
+    response_model=MessageResponse,
+    summary="Send/resend phone verification OTP",
+)
+@limiter.limit(OTP_RESEND_LIMIT)
+async def send_phone_otp(
+    request: Request,
+    response: Response,
+    body: SendPhoneOTPRequest,
+    auth_service: AuthServiceDep,
+) -> MessageResponse:
+    result = await auth_service.send_phone_otp(phone_number=body.phone_number)
+    return MessageResponse(message=result["message"])
+
+
+@router.post(
+    "/verify-phone-otp",
+    response_model=MessageResponse,
+    summary="Verify phone number with OTP",
+)
+async def verify_phone_otp(
+    body: VerifyPhoneOTPRequest,
+    auth_service: AuthServiceDep,
+) -> MessageResponse:
+    result = await auth_service.verify_phone_otp(phone_number=body.phone_number, otp=body.otp)
+    return MessageResponse(message=result["message"])
+
+
+@router.post(
     "/login",
     response_model=LoginResponse,
     summary="Authenticate and obtain tokens",
@@ -79,8 +116,9 @@ async def login(
     auth_service: AuthServiceDep,
 ) -> LoginResponse:
     return await auth_service.login(
-        email=body.email,
         password=body.password,
+        email=body.email,
+        phone_number=body.phone_number,
         request=request,
         device_name=body.device_name,
     )

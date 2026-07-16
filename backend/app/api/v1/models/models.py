@@ -130,7 +130,8 @@ class User(Base):
     display_name: Mapped[Optional[str]] = mapped_column(String(100))
     bio: Mapped[Optional[str]] = mapped_column(Text)
     avatar_url: Mapped[Optional[str]] = mapped_column(String(500))
-    phone_number: Mapped[Optional[str]] = mapped_column(String(20))
+    phone_number: Mapped[Optional[str]] = mapped_column(String(20), unique=True)
+    is_phone_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     gender: Mapped[Optional[GenderPreference]] = mapped_column(
         Enum(GenderPreference, name="gender_preference", values_callable=lambda x: [e.value for e in x])
     )
@@ -156,6 +157,9 @@ class User(Base):
 
     # Relationships
     email_verifications: Mapped[list["EmailVerification"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
+    phone_verifications: Mapped[list["PhoneVerification"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
     login_attempts: Mapped[list["LoginAttempt"]] = relationship(
@@ -222,6 +226,31 @@ class EmailVerification(Base):
 
     __table_args__ = (
         Index("ix_email_verifications_user_active", "user_id", "is_used", "expires_at"),
+    )
+
+
+class PhoneVerification(Base):
+    __tablename__ = "phone_verifications"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    user_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    phone_number: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
+    otp_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    is_used: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    used_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+
+    user: Mapped["User"] = relationship(back_populates="phone_verifications")
+
+    __table_args__ = (
+        Index("ix_phone_verifications_user_active", "user_id", "is_used", "expires_at"),
+        Index("ix_phone_verifications_phone", "phone_number"),
     )
 
 

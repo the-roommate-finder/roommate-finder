@@ -44,6 +44,18 @@ class UserRepository(BaseRepository[User]):
         )
         return result.scalar_one_or_none() is not None
 
+    async def get_by_phone(self, phone_number: str) -> Optional[User]:
+        result = await self.db.execute(
+            select(User).where(User.phone_number == phone_number, User.is_deleted == False)  # noqa: E712
+        )
+        return result.scalar_one_or_none()
+
+    async def phone_exists(self, phone_number: str) -> bool:
+        result = await self.db.execute(
+            select(User.id).where(User.phone_number == phone_number, User.is_deleted == False)  # noqa: E712
+        )
+        return result.scalar_one_or_none() is not None
+
     #  Mutations 
     async def create_user(
         self,
@@ -51,11 +63,15 @@ class UserRepository(BaseRepository[User]):
         email: str,
         hashed_password: str,
         role: UserRole = UserRole.SEEKER,
+        display_name: Optional[str] = None,
+        phone_number: Optional[str] = None,
     ) -> User:
         return await self.create(
             email=email,
             hashed_password=hashed_password,
             role=role,
+            display_name=display_name,
+            phone_number=phone_number,
             is_active=False,
             is_email_verified=False,
         )
@@ -66,6 +82,9 @@ class UserRepository(BaseRepository[User]):
             is_active=True,
             is_email_verified=True,
         )
+
+    async def activate_phone(self, user: User) -> User:
+        return await self.update(user, is_phone_verified=True, is_active=True)
 
     async def update_last_active(self, user_id: str) -> None:
         await self.db.execute(

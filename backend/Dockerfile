@@ -14,7 +14,7 @@ WORKDIR /app
 # Install Python dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip \
-    && pip install --no-cache-dir -r requirements.txt
+    && pip install --no-cache-dir --retries 5 --timeout 100 -r requirements.txt
 
 #  Development stage 
 FROM base AS development
