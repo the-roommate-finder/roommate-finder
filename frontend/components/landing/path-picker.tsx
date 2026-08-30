@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { Users, Home, ArrowRight } from "lucide-react";
+import Image from "next/image";
+import { ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export function PathPicker() {
@@ -17,9 +18,13 @@ export function PathPicker() {
 
         <div className="mt-10 grid gap-6 md:grid-cols-2">
           <div className="rounded-2xl border border-border p-8">
-            <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-blue text-white">
-              <Users className="h-6 w-6" />
-            </span>
+            <Image
+              src="/looking-for-room.svg"
+              alt="Looking for a room"
+              width={48}
+              height={48}
+              className="h-12 w-12"
+            />
             <h3 className="mt-5 text-xl font-bold text-brand-ink">
               Looking for a Room?
             </h3>
@@ -36,9 +41,13 @@ export function PathPicker() {
           </div>
 
           <div className="rounded-2xl border border-border p-8">
-            <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-blue text-white">
-              <Home className="h-6 w-6" />
-            </span>
+            <Image
+              src="/have-a-room.svg"
+              alt="Have a room to share"
+              width={48}
+              height={48}
+              className="h-12 w-12"
+            />
             <h3 className="mt-5 text-xl font-bold text-brand-ink">
               Have a Room to Share?
             </h3>

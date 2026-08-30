@@ -1,6 +1,8 @@
 import { Fingerprint, Wallet } from "lucide-react";
+import Image from "next/image";
 
-const VIBE_TAGS = ["Sleep Schedule", "Cleanliness", "Guests", "Noise Level"];
+
+const VIBE_TAGS = ["Sleep Schedule", "Pets", "Cleanliness", "Guests", "Noise Level", "Prayer Habits", "Lifestyle", "Budget", "Hobbies"];
 
 export function Features() {
   return (
@@ -32,14 +34,20 @@ export function Features() {
               {VIBE_TAGS.map((tag) => (
                 <span
                   key={tag}
-                  className="rounded-full bg-brand-blue px-4 py-1.5 text-xs font-semibold text-white"
+                  className="rounded-sm bg-brand-blue px-4 py-1.5 text-xs font-sans text-white"
                 >
                   {tag}
                 </span>
               ))}
             </div>
           </div>
-          <div className="mx-auto h-56 w-40 rounded-3xl border-8 border-brand-ink bg-white shadow-xl sm:h-64 sm:w-48" />
+          <Image
+            src="/landinpagebuilding.jpg"
+            alt="Features Image"
+            width={600}
+            height={600}
+            className="h-full w-full object-cover"
+          />
         </div>
 
         <div className="mt-8 grid gap-6 md:grid-cols-2">

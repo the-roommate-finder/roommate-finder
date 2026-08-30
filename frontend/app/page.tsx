@@ -17,7 +17,7 @@ export default function LandingPage() {
       <VerifiedStrip />
       <Features />
       <PathPicker />
-      <VerifiedStrip />
+      <VerifiedStrip reverse />
       <ListingsPreview />
       <Goals />
       <Pricing />

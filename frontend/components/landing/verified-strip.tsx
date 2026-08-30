@@ -1,16 +1,21 @@
-import { ShieldCheck } from "lucide-react";
+import { cn } from "@/lib/utils";
 
-export function VerifiedStrip() {
-  const items = Array.from({ length: 9 });
+const STRIP_ITEMS = Array.from({ length: 9 });
+
+export function VerifiedStrip({ reverse = false }: { reverse?: boolean }) {
   return (
     <div className="overflow-hidden bg-brand-blue py-3">
-      <div className="flex flex-wrap items-center justify-center gap-x-10 gap-y-2 px-4">
-        {items.map((_, i) => (
+      <div
+        className={cn(
+          "flex w-max motion-reduce:animate-none",
+          reverse ? "animate-marquee-reverse" : "animate-marquee"
+        )}
+      >
+        {[...STRIP_ITEMS, ...STRIP_ITEMS].map((_, i) => (
           <span
             key={i}
-            className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-white/90"
+            className="mr-10 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-white/90"
           >
-            <ShieldCheck className="h-3.5 w-3.5 text-brand-yellow" />
             Verified ID
           </span>
         ))}
