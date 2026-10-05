@@ -167,7 +167,9 @@ class AuthService:
         await self._ev.increment_attempts(record)
 
         if not verify_otp(otp, record.otp_hash):
-            remaining = settings.OTP_MAX_ATTEMPTS - record.attempts - 1
+            remaining = max(0, settings.OTP_MAX_ATTEMPTS - record.attempts)
+            # get_db rolls back HTTP errors; persist this security counter first.
+            await self._ev.db.commit()
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Invalid OTP. {remaining} attempt(s) remaining.",
@@ -279,7 +281,8 @@ class AuthService:
         await self._pv.increment_attempts(record)
 
         if not verify_otp(otp, record.otp_hash):
-            remaining = settings.OTP_MAX_ATTEMPTS - record.attempts - 1
+            remaining = max(0, settings.OTP_MAX_ATTEMPTS - record.attempts)
+            await self._pv.db.commit()
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Invalid OTP. {remaining} attempt(s) remaining.",

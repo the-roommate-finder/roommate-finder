@@ -12,7 +12,7 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 
-from app.api.v1.routers import auth, calls, chat, listings, notifications, users
+from app.api.v1.routers import auth, calls, chat, google_auth, listings, notifications, users
 from app.core.config import settings
 from app.core.middleware import (
     ErrorHandlingMiddleware,
@@ -134,6 +134,7 @@ def create_app() -> FastAPI:
     v1 = settings.API_V1_PREFIX
 
     app.include_router(auth.router, prefix=v1)
+    app.include_router(google_auth.router, prefix=v1)
     app.include_router(users.router, prefix=v1)
     app.include_router(listings.router, prefix=v1)
     app.include_router(chat.router, prefix=v1)

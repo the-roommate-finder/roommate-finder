@@ -24,6 +24,7 @@ class EmailVerificationRepository(BaseRepository[EmailVerification]):
             )
             .order_by(EmailVerification.created_at.desc())
             .limit(1)
+            .with_for_update()
         )
         return result.scalar_one_or_none()
 
@@ -92,6 +93,7 @@ class PhoneVerificationRepository(BaseRepository[PhoneVerification]):
             )
             .order_by(PhoneVerification.created_at.desc())
             .limit(1)
+            .with_for_update()
         )
         return result.scalar_one_or_none()
 

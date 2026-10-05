@@ -596,3 +596,24 @@ class ResetPasswordRequest(BaseModel):
                 "one uppercase letter, one lowercase letter, and one digit."
             )
         return v
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  GOOGLE OAUTH SCHEMAS
+# ═══════════════════════════════════════════════════════════════════════════════
+class GoogleAuthURLResponse(BaseModel):
+    auth_url: str
+
+
+class GoogleCallbackRequest(BaseModel):
+    """Code exchange using state and the cookie from the authorization request."""
+    code: str = Field(min_length=1)
+    state: str = Field(min_length=1)
+
+
+class SocialLoginResponse(BaseModel):
+    access_token: str
+    refresh_token: str
+    token_type: str = "Bearer"
+    expires_in: int
+    user: "UserPublicResponse"
+    is_new_user: bool = False

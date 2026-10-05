@@ -10,6 +10,7 @@ from typing import Any
 
 from jose import JWTError, jwt
 from passlib.context import CryptContext
+from passlib.exc import UnknownHashError
 
 from app.core.config import settings
 
@@ -35,7 +36,11 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     Constant-time comparison. Returns True on match.
     Passlib automatically detects the scheme from the hash string.
     """
-    return _pwd_context.verify(plain_password, hashed_password)
+    try:
+        return _pwd_context.verify(plain_password, hashed_password)
+    except UnknownHashError:
+        # Older Google accounts contain a non-password placeholder.
+        return False
 
 
 def password_needs_rehash(hashed_password: str) -> bool:

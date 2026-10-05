@@ -34,6 +34,7 @@ from app.api.v1.repositories.user_repository import (
     UserSessionRepository,
 )
 from app.api.v1.services.auth_service import AuthService
+from app.api.v1.services.google_auth_service import GoogleAuthService
 from app.api.v1.services.chat_service import ChatService
 from app.api.v1.services.listing_service import ListingService
 from app.api.v1.services.notification_service import (
@@ -91,6 +92,18 @@ def get_notification_service(db: DbDep) -> NotificationService:
     return NotificationService(notification_repo=NotificationRepository(db))
 
 
+def get_google_auth_service(db: DbDep, redis: RedisDep) -> GoogleAuthService:
+    return GoogleAuthService(
+        user_repo=UserRepository(db),
+        rt_repo=RefreshTokenRepository(db),
+        session_repo=UserSessionRepository(db),
+        device_repo=DeviceRepository(db),
+        security_repo=SecurityEventRepository(db),
+        redis=redis,
+    )
+
+
+GoogleAuthServiceDep = Annotated[GoogleAuthService, Depends(get_google_auth_service)]
 AuthServiceDep = Annotated[AuthService, Depends(get_auth_service)]
 ListingServiceDep = Annotated[ListingService, Depends(get_listing_service)]
 ChatServiceDep = Annotated[ChatService, Depends(get_chat_service)]

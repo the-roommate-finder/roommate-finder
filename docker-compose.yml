@@ -16,12 +16,23 @@ x-backend: &backend
   restart: unless-stopped
 
 services:
+  # Apply committed migrations once before database consumers start.
+  migrate:
+    <<: *backend
+    command: alembic upgrade head
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   #  API Server 
   api:
     <<: *backend
     ports:
       - "8000:8000"
     depends_on:
+      migrate:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       redis:
@@ -36,6 +47,8 @@ services:
       --queues=email,media,notifications,maintenance
       --concurrency=4
     depends_on:
+      migrate:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       redis:
@@ -52,7 +65,10 @@ services:
       - ./backend:/app
       - celery-beat-data:/var/lib/celery
     depends_on:
-      - redis
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
 
   #  Flower (Celery Monitor) 
   flower:

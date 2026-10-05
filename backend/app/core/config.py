@@ -125,6 +125,11 @@ class Settings(BaseSettings):
     #  Frontend
     FRONTEND_URL: str = "http://localhost:3000"
 
+    #  Google OAuth
+    GOOGLE_CLIENT_ID: str = ""
+    GOOGLE_CLIENT_SECRET: str = ""
+    GOOGLE_REDIRECT_URI: str = "http://localhost:8000/api/v1/auth/google/callback"
+
     #  Uploads 
     MAX_UPLOAD_SIZE_MB: int = 10
     VOICE_NOTE_MAX_DURATION_SECONDS: int = 300
