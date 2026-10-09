@@ -1,34 +1,10 @@
-import type { Metadata } from "next";
-import { Inter, Yatra_One } from "next/font/google";
-import "./globals.css";
-
-const inter = Inter({
-  subsets: ["latin"],
-  variable: "--font-inter",
-  display: "swap",
-});
-
-const yatraOne = Yatra_One({
-  subsets: ["latin"],
-  weight: "400",
-  variable: "--font-yatra",
-  display: "swap",
-});
-
-export const metadata: Metadata = {
-  title: "Roommate Finder | Connect, Match, Live Together",
-  description:
-    "The platform for room seekers and listers in Nigeria. Match compatible flatmates or find vetted tenants. Identity-verified. Zero agents. Zero scams.",
-};
-
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  return (
-    <html lang="en" className={`${inter.variable} ${yatraOne.variable}`}>
-      <body className="font-sans antialiased">{children}</body>
-    </html>
-  );
+import type { Metadata } from 'next';
+import '@fontsource-variable/plus-jakarta-sans';
+import '@fontsource-variable/manrope';
+import '@fontsource-variable/inter';
+import '@fontsource/dm-serif-text/400.css';
+import './globals.css';
+export const metadata: Metadata = { title: 'Roommate Finder', description: 'Find a room or roommate. Make shared living work for you.' };
+export default function Layout({ children }: { children: React.ReactNode }) {
+  return <html lang="en"><body>{children}</body></html>;
 }

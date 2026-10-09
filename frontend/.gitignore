@@ -1,6 +1,7 @@
-node_modules
-.next
-.env.local
-.DS_Store
-npm-debug.log*
-next-env.d.ts
+node_modules/
+.next/
+.env*
+!.env.local.example
+*.tsbuildinfo
+playwright-report/
+test-results/

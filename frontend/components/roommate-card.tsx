@@ -1,0 +1,34 @@
+'use client';
+
+import { DesignIcon } from './design-icon';
+
+export type RoommateCardProps = {
+  name: string;
+  occupation: string;
+  location: string;
+  budget: string;
+  traits: string[];
+  updated: string;
+  image?: string;
+  onViewProfile: () => void;
+};
+
+export function RoommateCard({ name, occupation, location, budget, traits, updated, image, onViewProfile }: RoommateCardProps) {
+  return <article className="roommate-card" data-node-id="1226:11415">
+    <div className="room-image-slot" data-asset-slot="roommate-image">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      {image && <img src={image} alt={name} width={408} height={256} />}
+    </div>
+    <div className="roommate-content">
+      <div className="roommate-name"><h3>{name}</h3><span>{occupation}</span></div>
+      <p className="roommate-intent">Looking for Roommate</p>
+      <p className="roommate-location"><DesignIcon name="location" />{location}</p>
+      <p className="roommate-budget">{budget}</p>
+      <p className="roommate-move"><DesignIcon name="calendar" />Ready to move in</p>
+      <div className="roommate-traits">{traits.map(trait => <span key={trait}>{trait}</span>)}</div>
+      <DesignIcon name="roommate-divider" className="roommate-divider" />
+      <p className="roommate-updated">{updated}</p>
+      <button className="primary-button" onClick={onViewProfile}>View Profile</button>
+    </div>
+  </article>;
+}
