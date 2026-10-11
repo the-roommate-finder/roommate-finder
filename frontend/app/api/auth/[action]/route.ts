@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-const actions = new Set(['register', 'login', 'verify-email', 'forgot-password']);
+const actions = new Set(['register', 'login', 'verify-email', 'resend-otp', 'forgot-password', 'reset-password']);
 function errorMessage(data: Record<string, unknown>): string {
   if (typeof data.detail === 'string') return data.detail;
+  if (Array.isArray(data.detail)) return data.detail.map(item => typeof item?.msg === 'string' ? item.msg : 'Invalid value.').join(' ');
   if (data.detail && typeof data.detail === 'object' && 'message' in data.detail) return String(data.detail.message);
   if (Array.isArray(data.details)) return data.details.map((item: { message: string }) => item.message).join(' ');
   return typeof data.message === 'string' ? data.message : 'Unable to complete your request.';
@@ -22,6 +23,16 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     if (!upstream.ok) return NextResponse.json({ message: errorMessage(data) }, { status: upstream.status });
     const { access_token, refresh_token, ...publicData } = data;
     const response = NextResponse.json(publicData, { status: upstream.status, headers: { 'Cache-Control': 'no-store' } });
+    if ((action === 'register' || action === 'resend-otp') && typeof body.email === 'string') {
+      response.cookies.set('rmf_verification_email', body.email.trim().toLowerCase(), {
+        httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', path: '/', maxAge: 30 * 60,
+      });
+    }
+    if (action === 'verify-email') response.cookies.delete('rmf_verification_email');
+    if (action === 'reset-password') {
+      response.cookies.delete('rmf_access');
+      response.cookies.delete('rmf_refresh');
+    }
     if (access_token && refresh_token) {
       const options = { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax' as const, path: '/' };
       response.cookies.set('rmf_access', access_token, { ...options, maxAge: data.expires_in });

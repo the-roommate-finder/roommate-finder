@@ -1,4 +1,7 @@
 from fastapi import APIRouter, HTTPException, UploadFile, status
+from sqlalchemy.exc import IntegrityError
+from botocore.exceptions import BotoCoreError, ClientError
+import structlog
 
 from app.api.v1.dependencies import (
     AuthServiceDep,
@@ -14,10 +17,12 @@ from app.api.v1.repositories.user_repository import (
     UserSessionRepository,
 )
 from app.api.v1.schemas.schemas import (
+    CompleteProfileRequest,
     DeviceResponse,
     MessageResponse,
     SessionResponse,
     UserPublicResponse,
+    UserSelfResponse,
     UserRoleUpdateRequest,
     UserUpdateRequest,
 )
@@ -29,11 +34,11 @@ router = APIRouter(prefix="/users", tags=["Users"])
 
 @router.get(
     "/me",
-    response_model=UserPublicResponse,
+    response_model=UserSelfResponse,
     summary="Get current user profile",
 )
-async def get_my_profile(current_user: CurrentUser) -> UserPublicResponse:
-    return UserPublicResponse.model_validate(current_user)
+async def get_my_profile(current_user: CurrentUser) -> UserSelfResponse:
+    return UserSelfResponse.model_validate(current_user)
 
 
 @router.patch(
@@ -50,6 +55,25 @@ async def update_my_profile(
     updates = body.model_dump(exclude_unset=True, exclude_none=True)
     updated = await user_repo.update(current_user, **updates)
     return UserPublicResponse.model_validate(updated)
+
+
+@router.post("/me/complete-profile", response_model=UserSelfResponse)
+async def complete_profile(
+    body: CompleteProfileRequest, current_user: CurrentUser, db: DbDep,
+) -> UserSelfResponse:
+    if body.seeker_preferences is not None and current_user.role != UserRole.SEEKER:
+        raise HTTPException(status_code=403, detail="This form is for seeker accounts.")
+    updates = body.model_dump(exclude_unset=True, exclude_none=True)
+    if body.phone_number and body.phone_number != current_user.phone_number:
+        updates["is_phone_verified"] = False
+    try:
+        updated = await UserRepository(db).update(
+            current_user, **updates, is_profile_complete=True,
+        )
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(status_code=409, detail="That phone number is already in use.")
+    return UserSelfResponse.model_validate(updated)
 
 
 @router.post(
@@ -76,9 +100,17 @@ async def upload_avatar(
             detail=f"File too large. Maximum {settings.MAX_UPLOAD_SIZE_MB} MB.",
         )
 
-    storage = StorageClient()
-    key = f"avatars/{current_user.id}/{file.filename}"
-    cdn_url = await storage.upload(key=key, data=contents, content_type=content_type)
+    try:
+        storage = StorageClient()
+        key = f"avatars/{current_user.id}/{file.filename}"
+        cdn_url = await storage.upload(key=key, data=contents, content_type=content_type)
+    except (BotoCoreError, ClientError) as exc:
+        code = exc.response.get("Error", {}).get("Code", "unknown") if isinstance(exc, ClientError) else type(exc).__name__
+        structlog.get_logger(__name__).warning("avatar_upload_unavailable", storage_error_code=code)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Photo upload is unavailable. Please try again later or save your profile without a photo.",
+        ) from exc
 
     user_repo = UserRepository(db)
     updated = await user_repo.update(current_user, avatar_url=cdn_url)

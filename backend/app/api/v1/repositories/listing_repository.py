@@ -6,7 +6,7 @@ from typing import Optional
 from sqlalchemy import and_, asc, desc, func, or_, select, update
 from sqlalchemy.orm import selectinload
 
-from app.api.v1.models.models import GenderPreference, Listing, ListingImage, PropertyType
+from app.api.v1.models.models import GenderPreference, Listing, ListingImage, PropertyType, User
 from app.api.v1.repositories.base import BaseRepository
 from app.api.v1.schemas.schemas import ListingSearchParams
 
@@ -40,6 +40,7 @@ class ListingRepository(BaseRepository[Listing]):
     async def search(
         self,
         params: ListingSearchParams,
+        *, public_only: bool = False,
     ) -> tuple[list[Listing], int]:
         """
         Search listings with filters, sorting, and pagination.
@@ -50,10 +51,15 @@ class ListingRepository(BaseRepository[Listing]):
             Listing.is_available == True,  # noqa: E712
         ]
 
+        if public_only:
+            filters.append(Listing.owner.has(and_(User.is_active == True, User.is_deleted == False)))  # noqa: E712
+
         if params.city:
             filters.append(
-                func.lower(Listing.city).like(f"%{params.city.lower()}%")
+                func.lower(Listing.city).contains(params.city.lower(), autoescape=True)
             )
+        if params.area:
+            filters.append(func.lower(Listing.address).contains(params.area.lower(), autoescape=True))
         if params.min_rent is not None:
             filters.append(Listing.monthly_rent >= params.min_rent)
         if params.max_rent is not None:
@@ -92,7 +98,7 @@ class ListingRepository(BaseRepository[Listing]):
                 selectinload(Listing.owner),
             )
             .where(and_(*filters))
-            .order_by(order_fn(sort_col))
+            .order_by(order_fn(sort_col), Listing.id.asc())
             .offset(offset)
             .limit(params.page_size)
         )

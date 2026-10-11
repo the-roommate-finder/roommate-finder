@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { useRef, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { Menu, X } from 'lucide-react';
 import { DesignIcon } from './design-icon';
 import { steps } from './landing-data';
 import { ListingFeed, type ListingFilters } from './listing-feed';
@@ -15,7 +16,29 @@ export function LandingPage() {
   const [notice, setNotice] = useState({ title: '', message: '' });
   const dialog = useRef<HTMLDialogElement>(null);
   const results = useRef<HTMLElement>(null);
-  const menu = useRef<HTMLDetailsElement>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const header = useRef<HTMLElement>(null);
+  const menuToggle = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const desktop = window.matchMedia('(min-width: 951px)');
+    const closeOnDesktop = () => { if (desktop.matches) setMenuOpen(false); };
+    const closeOutside = (event: PointerEvent) => {
+      if (event.target instanceof Node && !header.current?.contains(event.target)) setMenuOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') { setMenuOpen(false); menuToggle.current?.focus(); }
+    };
+    desktop.addEventListener('change', closeOnDesktop);
+    document.addEventListener('pointerdown', closeOutside);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      desktop.removeEventListener('change', closeOnDesktop);
+      document.removeEventListener('pointerdown', closeOutside);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [menuOpen]);
 
   function showNotice(title: string, message: string) {
     setNotice({ title, message });
@@ -33,18 +56,24 @@ export function LandingPage() {
   }
 
   const navigation = <>
-    <a href="#browse" onClick={() => { if (menu.current) menu.current.open = false; }}>Browse</a>
-    <button onClick={() => unavailable('About us')}>About us</button>
-    <a href="#how-it-works" onClick={() => { if (menu.current) menu.current.open = false; }}>How it Works</a>
+    <a href="#browse" onClick={() => setMenuOpen(false)}>Browse</a>
+    <button onClick={() => { setMenuOpen(false); unavailable('About us'); }}>About us</button>
+    <a href="#how-it-works" onClick={() => setMenuOpen(false)}>How it Works</a>
   </>;
 
   return <div className="landing-page">
     <a className="skip-link" href="#main-content">Skip to content</a>
-    <header className="landing-header" data-node-id="1226:11983">
+    <header className="landing-header" ref={header} data-node-id="1226:11983" onBlur={event => { if (event.relatedTarget instanceof Node && !event.currentTarget.contains(event.relatedTarget)) setMenuOpen(false); }}>
       <Link href="/" className="landing-logo" aria-label="Roommate Finder home" data-asset-slot="header-logo" />
       <nav className="desktop-nav" aria-label="Main navigation">{navigation}</nav>
       <div className="landing-auth-links"><Link href="/login">Login</Link><Link href="/role-selection">Get Started</Link></div>
-      <details className="mobile-nav" ref={menu}><summary>Menu</summary><nav aria-label="Mobile navigation">{navigation}</nav></details>
+      <button ref={menuToggle} className="mobile-menu-toggle" type="button" aria-label={menuOpen ? 'Close navigation menu' : 'Open navigation menu'} aria-expanded={menuOpen} aria-controls="mobile-navigation" onClick={() => setMenuOpen(open => !open)}>
+        {menuOpen ? <X size={26} aria-hidden="true" /> : <Menu size={26} aria-hidden="true" />}
+      </button>
+      <nav id="mobile-navigation" className="mobile-nav" aria-label="Mobile navigation" hidden={!menuOpen}>
+        {navigation}
+        <div className="mobile-auth-links"><Link href="/login" onClick={() => setMenuOpen(false)}>Login</Link><Link href="/role-selection" onClick={() => setMenuOpen(false)}>Get Started</Link></div>
+      </nav>
     </header>
 
     <main id="main-content">

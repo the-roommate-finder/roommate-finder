@@ -20,6 +20,8 @@ The FastAPI backend should be running at `http://127.0.0.1:8000`.
 - `/role-selection`: frame 1072:6474, keyboard-accessible role selection.
 - `/signup?role=seeker|lister`: frame 1072:6496, registration and password confirmation.
 - `/login`: frame 1072:6592, login and password visibility.
+- `/reset-password?token=…`: set and confirm a new password using the emailed reset link; styled to match the existing auth screens.
+- `/create-profile`: seeker onboarding built from the supplied screenshot, with a reserved logo slot.
 - `/preview/room-card`: frame 1226:11520, reusable room card with explicit sample content.
 - `/`: landing page with navigation, live listing search/cards, how-it-works steps,
   and footer. Sample roommate profiles, reviews, pricing and user counts were removed.
@@ -78,15 +80,24 @@ could not be retrieved. The full screenshot is saved in
 
 ## API integration and current boundaries
 
-Registration, login, email verification and requesting password reset call
+Registration, login, email verification and password reset call
 FastAPI through an allowlisted same-origin Next.js route. Access/refresh tokens
 are stored in HttpOnly cookies, never returned to client JavaScript. Cookies
 are Secure in production. The frontend rejects cross-origin auth POSTs.
 
-Verification and password reset currently use inline forms within the existing
-auth layout; these are functional temporary states, not replicas of the unread
-OTP/reset designs. Successful authentication currently shows a confirmation on
-the same screen. Dashboard/profile routing and session refresh/logout are still
+Registration now opens `/verify-email`, implemented from the supplied OTP screenshot.
+It has six code boxes, automatic verification, paste/autofill support, resend,
+and backend error messages. The brand logo remains a reserved space. A short-lived
+HttpOnly cookie remembers the pending email across refreshes; OTPs are not stored.
+Successful verification establishes the session and shows a confirmation with a
+link to `/create-profile` for seekers who have not completed their profile, or home
+for other accounts. Visiting without a pending registration email redirects to signup.
+`/forgot-password` requests the existing backend reset link. `/reset-password`
+reads its token, validates the new password and confirmation, then sends
+`token` and `new_password` to the backend. Missing, expired and used links offer
+a fresh reset email. Success clears stale session cookies and links to login;
+the backend revokes sessions. Reset pages use no-referrer and noindex metadata.
+Dashboard/lister-profile routing and session refresh/logout are still
 pending the remaining screens. Google login is explicitly unavailable in this
 UI; its browser-to-backend-to-frontend callback integration is not yet implemented.
 The backend rate limiter currently sees this Next.js server's IP for these
@@ -94,8 +105,8 @@ requests; deployment needs a trusted proxy/client-IP policy before production us
 
 ### Profile and chat API preparation
 
-`/api/member/[...path]` adds authenticated, same-origin transport for the pending
-profile and chat screens. The browser sends its existing HttpOnly access cookie;
+`/api/member/[...path]` adds authenticated, same-origin transport for the seeker
+profile and future chat screens. The browser sends its existing HttpOnly access cookie;
 the server forwards only the access token as a Bearer header to FastAPI. It does
 not forward the refresh cookie, client Authorization, or forwarded-IP headers.
 All replies are `no-store`. Writes require a matching Origin; cross-site reads
@@ -107,6 +118,7 @@ Supported paths (after `/api/member/`) are:
 | --- | --- |
 | `users/me` | GET, PATCH |
 | `users/me/complete-profile` | POST |
+| `users/me/avatar` | POST (multipart PNG/JPG, up to 5 MB) |
 | `chat/conversations` | GET, POST |
 | `chat/conversations/:uuid` | GET |
 | `chat/conversations/:uuid/settings` | PATCH |
@@ -120,7 +132,7 @@ Paths, methods, query parameters, and JSON field names are allowlisted. FastAPI
 still validates field values and enforces conversation membership/ownership.
 Malformed JSON returns 400, an expired/missing access session returns 401, and
 upstream outages return 502 without exposing internal errors. Redirects are not
-followed. Automatic session refresh, avatar uploads, and block/unblock transport
+followed. Automatic session refresh and block/unblock transport
 are not included in this preparation.
 
 Chat transport accepts the backend's `encrypted_content` and `encryption_nonce`
@@ -129,9 +141,24 @@ private-key storage, encryption/decryption, recovery, and the chat UI still need
 implementation before users can send messages. The tests use mocked backend
 responses and send no messages or profile changes to real users.
 
-Create Profile (`1238:5304`) and Chat (`1325:9535`) were both retried after the
-landing work, but Figma returned its Starter quota error for both. Their visual
-designs are still unavailable; neither screen nor its navigation is added yet.
+The seeker profile now uses the supplied screenshot because Figma MCP remains
+quota-limited. It loads the signed-in user's details, uploads an optional photo
+through the existing storage endpoint, and saves personal details plus typed
+`seeker_preferences`. Budgets are whole naira; bio is limited to 200 characters.
+Lifestyle choices are optional and start unselected; only selected choices turn
+blue. Unanswered choices remain unset in storage. Invalid required details show
+a message beside Save & Continue and focus the affected input.
+Birth date and preferences are returned only by self-profile endpoints. Apply
+backend migrations through `0006_user_gender.py` before using this screen.
+Profile gender accepts only Male or Female in the form, API and database.
+Migration 0006 clears any legacy unsupported gender and marks that profile
+incomplete so its owner can choose again; existing Male/Female values are retained.
+Save & Continue returns home after a successful save; Skip for now returns home
+without marking the profile complete. The dashboard destination remains pending.
+Actual photo delivery requires the backend's S3 storage configuration; automated
+tests mock storage delivery. When photo upload fails, form entries are retained
+and an explicit Save without photo action lets the user complete their profile;
+the UI never claims a failed photo was uploaded. Chat (`1325:9535`) still awaits its exact design.
 
 Figma access worked on October 8, 2026, then reached its Starter MCP quota during
 the landing-page reads. The following landing sections are omitted pending their
@@ -142,7 +169,7 @@ retrieved component (`1226:11520`); the full room-grid context (`1226:11519`)
 could not be retrieved. Available references and the structure are saved under
 `../design-reference/landing-*` so they do not need to be fetched again.
 
-OTP/reset screens, profile setup, dashboard, browse, saved, messages and settings
+Lister profile setup, dashboard, browse, saved, messages and settings
 also remain pending. These missing sections/screens are not claimed as matched.
 Only the standalone design preview uses sample listing content.
 

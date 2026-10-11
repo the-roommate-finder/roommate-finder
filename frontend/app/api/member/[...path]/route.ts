@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 type Endpoint = {
   path: RegExp;
-  methods: Record<string, { query?: string[]; fields?: string[]; encrypted?: boolean }>;
+  methods: Record<string, { query?: string[]; fields?: string[]; encrypted?: boolean; upload?: boolean }>;
 };
 
 const uuid = '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}';
@@ -12,8 +12,9 @@ const endpoints: Endpoint[] = [
     GET: {}, PATCH: { fields: ['display_name', 'bio', 'phone_number', 'gender'] },
   } },
   { path: /^users\/me\/complete-profile$/, methods: {
-    POST: { fields: ['display_name', 'bio', 'gender'] },
+    POST: { fields: ['display_name', 'bio', 'gender', 'phone_number', 'date_of_birth', 'seeker_preferences'] },
   } },
+  { path: /^users\/me\/avatar$/, methods: { POST: { upload: true } } },
   { path: /^chat\/conversations$/, methods: {
     GET: { query: ['include_archived', 'page', 'page_size'] },
     POST: { fields: ['participant_id'] },
@@ -78,7 +79,26 @@ async function handle(request: NextRequest, context: { params: Promise<{ path: s
     query.set(key, value);
   }
 
-  let body: string | undefined;
+  let body: string | FormData | undefined;
+  if (options.upload) {
+    if (!request.headers.get('content-type')?.startsWith('multipart/form-data;')) {
+      return json({ message: 'Choose a PNG or JPG photo.' }, 415);
+    }
+    if (Number(request.headers.get('content-length')) > 5 * 1024 * 1024 + 65536) {
+      return json({ message: 'Photo must be 5 MB or smaller.' }, 413);
+    }
+    try {
+      const form = await request.formData();
+      const file = form.get('file');
+      if (!file || typeof file === 'string' || form.getAll('file').length !== 1 ||
+          [...form.keys()].some(key => key !== 'file') || !['image/png', 'image/jpeg'].includes(file.type)) {
+        return json({ message: 'Choose a PNG or JPG photo.' }, 415);
+      }
+      if (!file.size || file.size > 5 * 1024 * 1024) return json({ message: 'Photo must be between 1 byte and 5 MB.' }, 413);
+      body = new FormData();
+      body.set('file', file, file.type === 'image/png' ? 'profile.png' : 'profile.jpg');
+    } catch { return json({ message: 'Unable to read the photo.' }, 400); }
+  }
   if (options.fields) {
     if (request.headers.get('content-type')?.split(';')[0].trim().toLowerCase() !== 'application/json') {
       return json({ message: 'Send a JSON request body.' }, 415);
@@ -104,12 +124,13 @@ async function handle(request: NextRequest, context: { params: Promise<{ path: s
       headers: {
         Authorization: `Bearer ${token}`,
         Accept: 'application/json',
-        ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+        ...(typeof body === 'string' ? { 'Content-Type': 'application/json' } : {}),
         'User-Agent': request.headers.get('user-agent') || 'Roommate Finder',
       },
       body, cache: 'no-store', redirect: 'manual', signal: AbortSignal.timeout(15000),
     });
     if (upstream.status >= 500 || (upstream.status >= 300 && upstream.status < 400)) {
+      if (options.upload) return json({ message: 'Photo upload is unavailable. Please try again later or save your profile without a photo.' }, 502);
       return json({ message: 'The server is unavailable. Please try again.' }, 502);
     }
     if (upstream.status === 204) return new NextResponse(null, { status: 204, headers: { 'Cache-Control': 'no-store' } });
@@ -120,6 +141,7 @@ async function handle(request: NextRequest, context: { params: Promise<{ path: s
     }
     return response;
   } catch {
+    if (options.upload) return json({ message: 'Unable to upload your photo. Please try again or save your profile without a photo.' }, 502);
     return json({ message: 'Unable to reach the server. Please try again.' }, 502);
   }
 }

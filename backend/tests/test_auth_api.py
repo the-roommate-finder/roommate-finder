@@ -191,3 +191,60 @@ async def test_otp_attempt_limit_persists_after_failed_requests(api, channel):
         assert response.status_code == 400, response.text
         assert f"{settings.OTP_MAX_ATTEMPTS - attempt - 1} attempt(s)" in response.json()["detail"]
     assert (await api.client.post(path, json={**body, "otp": valid})).status_code == 429
+
+
+@pytest.mark.parametrize("role", ["seeker", "lister"])
+@pytest.mark.parametrize("channel", ["email", "phone"])
+async def test_verification_session_and_resume_onboarding(api, role, channel):
+    response = await api.client.post(f"{AUTH}/register", json={
+        "email": api.email, "password": PASSWORD, "role": role,
+    })
+    assert response.status_code == 201, response.text
+    user = response.json()
+    if channel == "email":
+        path = f"{AUTH}/verify-email"
+        body = {"email": api.email}
+        delivery = "send_otp_email"
+    else:
+        phone = "+234" + user["id"].split("-")[-1].zfill(10)
+        async with api.sessions() as db:
+            await db.execute(update(User).where(User.id == user["id"]).values(phone_number=phone))
+            await db.commit()
+        body = {"phone_number": phone}
+        assert (await api.client.post(f"{AUTH}/send-phone-otp", json=body)).status_code == 200
+        path = f"{AUTH}/verify-phone-otp"
+        delivery = "send_otp_sms"
+    otp = api.deliveries[delivery].call_args.kwargs["otp"]
+    assert (await api.client.post(path, json={**body, "otp": "000000" if otp != "000000" else "111111"})).status_code == 400
+    response = await api.client.post(path, json={**body, "otp": otp})
+    assert response.status_code == 200, response.text
+    tokens = response.json()
+    assert tokens["user"]["role"] == role
+    assert tokens["user"]["is_profile_complete"] is False
+    headers = {"Authorization": f"Bearer {tokens['access_token']}"}
+    profile = await api.client.get("/api/v1/users/me", headers=headers)
+    assert profile.status_code == 200
+    assert profile.json()["is_profile_complete"] is False
+    # Verification is not a reusable passwordless-login endpoint.
+    assert (await api.client.post(path, json={**body, "otp": otp})).status_code == 400
+    assert (await api.client.post(path, json={**body, "otp": "123456"})).status_code == 400
+    assert (await api.client.post(f"{AUTH}/refresh", json={"refresh_token": tokens["refresh_token"]})).status_code == 200
+    resumed = await login(api)
+    assert resumed.status_code == 200
+    assert resumed.json()["user"]["is_profile_complete"] is False
+    assert resumed.json()["access_token"] != tokens["access_token"]
+    endpoint = "/api/v1/users/me/complete-profile"
+    assert (await api.client.post(endpoint, json={"display_name": "Test"})).status_code in (401, 403)
+    assert (await api.client.post(endpoint, headers=headers, json={"display_name": "  "})).status_code == 422
+    # Saving a draft does not silently mark onboarding complete.
+    draft = await api.client.patch("/api/v1/users/me", headers=headers, json={"bio": "Draft bio"})
+    assert draft.status_code == 200
+    assert draft.json()["is_profile_complete"] is False
+    completed = await api.client.post(endpoint, headers=headers, json={"display_name": "  Test User  "})
+    assert completed.status_code == 200, completed.text
+    assert completed.json()["is_profile_complete"] is True
+    assert completed.json()["display_name"] == "Test User"
+    assert completed.json()["bio"] == "Draft bio"
+    resumed = await login(api)
+    assert resumed.status_code == 200
+    assert resumed.json()["user"]["is_profile_complete"] is True

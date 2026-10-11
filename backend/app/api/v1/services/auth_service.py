@@ -137,7 +137,7 @@ class AuthService:
         )
 
     #  Email Verification 
-    async def verify_email(self, email: str, otp: str) -> dict:
+    async def verify_email(self, email: str, otp: str, request: Request) -> LoginResponse:
         """
         Validate the OTP and activate the user account.
         Enforces max-attempts and expiry.
@@ -149,7 +149,7 @@ class AuthService:
                 detail="No account found with this email.",
             )
         if user.is_email_verified:
-            return {"message": "Email is already verified. You may log in."}
+            raise HTTPException(status_code=400, detail="Email is already verified. Please log in.")
 
         record = await self._ev.get_latest_unused(user.id)
         if not record:
@@ -184,7 +184,7 @@ class AuthService:
         )
 
         logger.info("email_verified", user_id=user.id)
-        return {"message": "Email verified successfully. You may now log in."}
+        return await self._issue_session(user, request)
 
     async def resend_otp(self, email: str) -> dict:
         """
@@ -251,7 +251,7 @@ class AuthService:
 
         return {"message": "A verification code has been sent to your phone number."}
 
-    async def verify_phone_otp(self, phone_number: str, otp: str) -> dict:
+    async def verify_phone_otp(self, phone_number: str, otp: str, request: Request) -> LoginResponse:
         """
         Validate the OTP and mark the phone number as verified.
         Enforces max-attempts and expiry, same as email verification.
@@ -263,7 +263,7 @@ class AuthService:
                 detail="No account found with this phone number.",
             )
         if user.is_phone_verified:
-            return {"message": "Phone number is already verified."}
+            raise HTTPException(status_code=400, detail="Phone number is already verified. Please log in.")
 
         record = await self._pv.get_latest_unused(user.id, phone_number)
         if not record:
@@ -297,7 +297,7 @@ class AuthService:
         )
 
         logger.info("phone_verified", user_id=user.id)
-        return {"message": "Phone number verified successfully."}
+        return await self._issue_session(user, request)
 
     #  Login 
     async def login(
@@ -391,6 +391,19 @@ class AuthService:
             f"{_FAIL_COUNT_PREFIX}{identifier}",
             f"{_LOCKOUT_PREFIX}{identifier}",
         )
+
+        return await self._issue_session(user, request, device_name)
+
+    async def _issue_session(
+        self, user: User, request: Request, device_name: Optional[str] = None
+    ) -> LoginResponse:
+        """Issue tokens and record a session after credentials or a fresh OTP pass."""
+        ip = _get_client_ip(request)
+        ua_string = request.headers.get("User-Agent", "")
+        ua = parse_ua(ua_string)
+        location = await self._resolve_location(ip)
+        device_fp = _device_fingerprint(ip, ua_string)
+        identifier = user.email
 
         #  Record device 
         device = await self._devices.upsert_device(

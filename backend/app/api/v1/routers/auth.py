@@ -47,15 +47,15 @@ async def register(
 
 @router.post(
     "/verify-email",
-    response_model=MessageResponse,
+    response_model=LoginResponse,
     summary="Verify email with OTP",
 )
 async def verify_email(
     body: VerifyEmailRequest,
+    request: Request,
     auth_service: AuthServiceDep,
-) -> MessageResponse:
-    result = await auth_service.verify_email(email=body.email, otp=body.otp)
-    return MessageResponse(message=result["message"])
+) -> LoginResponse:
+    return await auth_service.verify_email(email=body.email, otp=body.otp, request=request)
 
 
 @router.post(
@@ -92,15 +92,15 @@ async def send_phone_otp(
 
 @router.post(
     "/verify-phone-otp",
-    response_model=MessageResponse,
+    response_model=LoginResponse,
     summary="Verify phone number with OTP",
 )
 async def verify_phone_otp(
     body: VerifyPhoneOTPRequest,
+    request: Request,
     auth_service: AuthServiceDep,
-) -> MessageResponse:
-    result = await auth_service.verify_phone_otp(phone_number=body.phone_number, otp=body.otp)
-    return MessageResponse(message=result["message"])
+) -> LoginResponse:
+    return await auth_service.verify_phone_otp(phone_number=body.phone_number, otp=body.otp, request=request)
 
 
 @router.post(

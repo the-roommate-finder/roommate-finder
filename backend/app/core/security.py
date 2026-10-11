@@ -81,6 +81,7 @@ def create_access_token(
         "iat": now,
         "exp": expire,
         "type": "access",
+        "jti": secrets.token_urlsafe(32),
     }
     if extra_claims:
         payload.update(extra_claims)

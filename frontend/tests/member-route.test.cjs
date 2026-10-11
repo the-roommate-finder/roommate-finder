@@ -13,7 +13,7 @@ const compiled = ts.transpileModule(fs.readFileSync('app/api/member/[...path]/ro
 
 function handlers(fetch) {
   const exports = {};
-  vm.runInNewContext(compiled, { exports, require, process: { env: {} }, fetch, AbortSignal, URLSearchParams });
+  vm.runInNewContext(compiled, { exports, require, process: { env: {} }, fetch, AbortSignal, URLSearchParams, FormData });
   return exports;
 }
 function request(path, method = 'GET', body, headers = {}) {
@@ -26,6 +26,56 @@ function request(path, method = 'GET', body, headers = {}) {
 }
 function context(path) { return { params: Promise.resolve({ path: path.split('?')[0].split('/') }) }; }
 function noUpstream() { throw new Error('Unexpected backend call'); }
+
+test('photo storage failures are actionable without exposing provider errors', async () => {
+  for (const upstream of [
+    async () => Response.json({ detail: 'Private storage credentials error' }, { status: 503 }),
+    async () => { throw new Error('Private storage endpoint timeout'); },
+  ]) {
+    const form = new FormData(); form.set('file', new Blob(['image-data'], { type: 'image/png' }), 'profile.png');
+    const req = new NextRequest('https://roommate.example/api/member/users/me/avatar', { method: 'POST', body: form,
+      headers: { origin: 'https://roommate.example', cookie: 'rmf_access=private-access' } });
+    const response = await handlers(upstream).POST(req, context('users/me/avatar'));
+    assert.equal(response.status, 502);
+    const body = await response.json();
+    assert.match(body.message, /without a photo/);
+    assert.equal(JSON.stringify(body).includes('Private'), false);
+  }
+});
+
+test('seeker fields reach the completion endpoint without client-controlled account flags', async () => {
+  const payload = { display_name: 'Ada', date_of_birth: '2000-05-20T00:00:00Z', phone_number: '+2348012345678',
+    seeker_preferences: { occupation: 'Engineer', budget_min: 50000, budget_max: 150000 } };
+  const { POST } = handlers(async (url, options) => {
+    assert.deepEqual(JSON.parse(options.body), payload);
+    return Response.json({ is_profile_complete: true });
+  });
+  const path = 'users/me/complete-profile';
+  assert.equal((await POST(request(path, 'POST', payload), context(path))).status, 200);
+  assert.equal((await handlers(noUpstream).POST(request(path, 'POST', { ...payload, is_profile_complete: true }), context(path))).status, 400);
+});
+
+test('avatar proxy validates and forwards multipart files with the authenticated user', async () => {
+  function upload(file, headers = {}) {
+    const body = new FormData(); body.set('file', file, 'user-chosen-name.png');
+    return new NextRequest('https://roommate.example/api/member/users/me/avatar', { method: 'POST', body,
+      headers: { origin: 'https://roommate.example', cookie: 'rmf_access=private-access', ...headers } });
+  }
+  const { POST } = handlers(async (url, options) => {
+    assert.equal(url.endsWith('/users/me/avatar'), true);
+    assert.equal(options.headers.Authorization, 'Bearer private-access');
+    assert.equal(options.headers['Content-Type'], undefined);
+    assert.equal(options.body.get('file').name, 'profile.png');
+    assert.equal(await options.body.get('file').text(), 'image-data');
+    return Response.json({ avatar_url: 'https://images.example/photo.png' });
+  });
+  const path = context('users/me/avatar');
+  assert.equal((await POST(upload(new Blob(['image-data'], { type: 'image/png' })), path)).status, 200);
+  const deny = handlers(noUpstream);
+  assert.equal((await deny.POST(upload(new Blob(['bad'], { type: 'image/gif' })), path)).status, 415);
+  assert.equal((await deny.POST(upload(new Blob([new Uint8Array(5 * 1024 * 1024 + 1)], { type: 'image/png' })), path)).status, 413);
+  assert.equal((await deny.POST(upload(new Blob(['data'], { type: 'image/png' }), { cookie: '' }), path)).status, 401);
+});
 
 test('member calls authenticate with only the access cookie, ignoring client authorization', async () => {
   const { GET } = handlers(async (url, options) => {

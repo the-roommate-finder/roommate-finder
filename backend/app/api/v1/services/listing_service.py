@@ -17,6 +17,7 @@ from app.api.v1.schemas.schemas import (
     ListingSearchParams,
     ListingUpdateRequest,
     PaginatedResponse,
+    PublicListingResponse,
 )
 from app.core.config import settings
 from app.utils.storage import StorageClient
@@ -126,6 +127,14 @@ class ListingService:
             page=params.page,
             page_size=params.page_size,
             pages=pages,
+        )
+
+    async def search_public_listings(self, params: ListingSearchParams) -> PaginatedResponse[PublicListingResponse]:
+        items, total = await self._listings.search(params, public_only=True)
+        return PaginatedResponse(
+            items=[PublicListingResponse.model_validate(item) for item in items],
+            total=total, page=params.page, page_size=params.page_size,
+            pages=max(1, -(-total // params.page_size)),
         )
 
     async def get_my_listings(self, owner: User) -> list[ListingResponse]:

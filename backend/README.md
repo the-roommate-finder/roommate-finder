@@ -58,6 +58,32 @@ native PKCE flow is not implemented.
 
 ## Authentication tests
 
+### Verification and onboarding contract
+
+`POST /api/v1/auth/verify-email` and `POST /api/v1/auth/verify-phone-otp`
+now return the same token-and-user response as login on successful verification:
+`access_token`, `refresh_token`, `token_type`, `expires_in`, and `user`.
+They no longer return only a message. A used OTP or already verified account
+cannot obtain another session through verification; use login instead.
+
+`user.is_profile_complete` is available in login, verification, Google login,
+and `GET /api/v1/users/me` responses. The frontend should route a false value
+to profile setup for `user.role` (seeker/lister), and a true value to the dashboard.
+After refreshing tokens, fetch `/users/me` for the current onboarding status.
+
+Authenticated clients finish onboarding with
+`POST /api/v1/users/me/complete-profile`, submitting a nonblank `display_name`
+and optionally `bio` and `gender`. The endpoint saves the profile and sets
+`is_profile_complete=true` atomically. Ordinary `PATCH /users/me` updates can
+save drafts without completing onboarding. Role-specific required fields can
+be added once the profile designs are defined. This flag guides frontend
+navigation; it does not currently restrict access to other protected APIs.
+
+The profile-completion migration defaults existing and new users to false;
+existing profiles are not assumed to have completed this new onboarding step.
+
+### Running tests
+
 With the local Compose stack running and migrated:
 
 ```bash
@@ -70,3 +96,20 @@ Email/SMS delivery and Google token/profile responses are mocked; no real
 messages or Google authorization requests are sent. Tests disable request
 rate limiting but exercise account lockout and OTP attempt limits.
 Run against a local development database, not production.
+
+
+### Public landing page listings
+
+`GET /api/v1/listings/public` provides an anonymous, uncached listing feed. It
+returns available, non-deleted listings from active, non-deleted owners, newest
+first. Filters: `city`, `area` (literal substring of address), `property_type`,
+`page`, and `page_size` (default 3, maximum 30). Public owner data contains only
+`display_name`; account/contact data and storage keys are excluded. Existing
+listing creation, private reads, updates and uploads retain authentication.
+
+Rent continues to use integer minor units: for NGN, 30,000,000 kobo means
+NGN300,000 monthly. The frontend converts minor units for display.
+
+`tests/test_public_listings.py` verifies creation-to-public-feed visibility,
+filtering, pagination, image metadata, privacy and unavailable/deleted records
+using rollback transactions and mocked email delivery. No migration is needed.

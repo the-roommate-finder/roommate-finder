@@ -16,13 +16,20 @@ test('signup validates confirmation then submits the role and shows verification
   await page.getByLabel('Confirm Password').fill('Different123!');
   await page.getByRole('button', { name: 'Create account', exact: true }).click();
   await expect(page.locator('.form-feedback[role=alert]')).toHaveText('Your passwords must match.');
-  await page.getByLabel('Confirm Password').fill('Password123!');
+  await page.getByLabel('Password', { exact: true }).fill('Abc123');
+  await page.getByLabel('Confirm Password').fill('Abc123');
+  await page.getByRole('button', { name: 'Create account', exact: true }).click();
+  await expect(page.locator('.form-feedback[role=alert]')).toHaveText('Use 6–50 characters with an uppercase letter, a lowercase letter, a number, and a special character.');
+  await page.getByLabel('Password', { exact: true }).fill('Abc1!x');
+  await page.getByLabel('Confirm Password').fill('Abc1!x');
   await page.route('**/api/auth/register', async route => {
-    expect(route.request().postDataJSON()).toEqual({ email: 'test@example.com', password: 'Password123!', display_name: 'Test Person', role: 'lister' });
-    await route.fulfill({ status: 201, json: { id: 'test', email: 'test@example.com' } });
+    expect(route.request().postDataJSON()).toEqual({ email: 'test@example.com', password: 'Abc1!x', display_name: 'Test Person', role: 'lister' });
+    await route.fulfill({ status: 201, headers: { 'Set-Cookie': 'rmf_verification_email=test@example.com; Path=/; HttpOnly; SameSite=Lax' }, json: { id: 'test', email: 'test@example.com' } });
   });
   await page.getByRole('button', { name: 'Create account', exact: true }).click();
-  await expect(page.getByLabel('Email verification code')).toBeVisible();
+  await expect(page).toHaveURL(/\/verify-email$/);
+  await expect(page.getByRole('group', { name: 'Email verification code' })).toBeVisible();
+  await expect(page.getByLabel('Confirm Password')).toHaveCount(0);
 });
 
 test('login handles errors and password visibility without storing tokens in localStorage', async ({ page }) => {

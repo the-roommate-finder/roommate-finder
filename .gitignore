@@ -30,7 +30,10 @@ ENV/
 *.sqlite3
 *.db
 
-# esting & Coverage 
+# Testing & Coverage
+test/
+tests/
+__tests__/
 .pytest_cache/
 .coverage
 htmlcov/
@@ -71,3 +74,9 @@ docker-compose.override.yml
 
 # Ruff 
 .ruff_cache/
+
+CLAUDE**
+.claude**
+AGENTS.md
+
+design-reference/

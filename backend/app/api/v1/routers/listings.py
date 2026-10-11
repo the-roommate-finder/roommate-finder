@@ -9,10 +9,28 @@ from app.api.v1.schemas.schemas import (
     ListingUpdateRequest,
     MessageResponse,
     PaginatedResponse,
+    PublicListingResponse,
 )
 from app.core.rate_limit import LISTING_LIMIT, limiter
 
 router = APIRouter(prefix="/listings", tags=["Listings"])
+
+
+@router.get("/public", response_model=PaginatedResponse[PublicListingResponse], summary="Public landing page listings")
+async def public_listings(
+    response: Response,
+    listing_service: ListingServiceDep,
+    city: str | None = Query(default=None, min_length=1, max_length=100),
+    area: str | None = Query(default=None, min_length=1, max_length=100),
+    property_type: PropertyType | None = Query(default=None),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=3, ge=1, le=30),
+) -> PaginatedResponse[PublicListingResponse]:
+    response.headers["Cache-Control"] = "no-store"
+    return await listing_service.search_public_listings(ListingSearchParams(
+        city=city, area=area, property_type=property_type,
+        page=page, page_size=page_size, sort_by="created_at", sort_order="desc",
+    ))
 
 
 @router.post(

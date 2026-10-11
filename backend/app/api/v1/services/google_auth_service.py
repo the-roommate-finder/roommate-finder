@@ -180,7 +180,7 @@ class GoogleAuthService:
             is_new_user=is_new,
         )
 
-    # ── Internal helpers ──────────────────────────────────────────────────────
+    # Internal helpers 
     async def _exchange_code(self, code: str) -> dict:
         """Exchange OAuth code for Google access token."""
         async with httpx.AsyncClient() as client:

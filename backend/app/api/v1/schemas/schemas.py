@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import re
-from datetime import datetime
-from typing import Any, Generic, Optional, TypeVar
+from datetime import datetime, timezone
+from typing import Any, Generic, Literal, Optional, TypeVar
 
 from pydantic import (
     BaseModel,
@@ -21,6 +21,7 @@ from app.api.v1.models.models import (
     NotificationType,
     PropertyType,
     SecurityEventType,
+    UserGender,
     UserRole,
 )
 
@@ -51,7 +52,8 @@ class ErrorResponse(BaseModel):
 
 #  AUTH SCHEMAS
 _PASSWORD_PATTERN = re.compile(
-    r"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{6,50}$"
+    # ASCII punctuation ranges include underscores; whitespace does not qualify.
+    r"(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[!-/:-@\[-`{-~]).{6,50}"
 )
 
 
@@ -88,10 +90,10 @@ class RegisterRequest(BaseModel):
     @field_validator("password")
     @classmethod
     def validate_password_strength(cls, v: str) -> str:
-        if not _PASSWORD_PATTERN.match(v):
+        if not _PASSWORD_PATTERN.fullmatch(v):
             raise ValueError(
                 "Password must be 6-50 characters and contain at least "
-                "one uppercase letter, one lowercase letter, and one digit."
+                "one uppercase letter, one lowercase letter, one number, and one special character."
             )
         return v
 
@@ -219,10 +221,10 @@ class ChangePasswordRequest(BaseModel):
     @field_validator("new_password")
     @classmethod
     def validate_password_strength(cls, v: str) -> str:
-        if not _PASSWORD_PATTERN.match(v):
+        if not _PASSWORD_PATTERN.fullmatch(v):
             raise ValueError(
                 "New password must be 6-50 characters and contain at least "
-                "one uppercase letter, one lowercase letter, and one digit."
+                "one uppercase letter, one lowercase letter, one number, and one special character."
             )
         return v
 
@@ -236,6 +238,7 @@ class ChangePasswordRequest(BaseModel):
 #  USER SCHEMAS
 class UserPublicResponse(BaseModel):
     model_config = _orm_config
+    is_profile_complete: bool
 
     id: str
     email: str
@@ -245,7 +248,7 @@ class UserPublicResponse(BaseModel):
     avatar_url: Optional[str] = None
     phone_number: Optional[str] = None
     is_phone_verified: bool = False
-    gender: Optional[GenderPreference] = None
+    gender: Optional[UserGender] = None
     is_active: bool
     is_email_verified: bool
     last_active_at: Optional[datetime] = None
@@ -256,7 +259,7 @@ class UserUpdateRequest(BaseModel):
     display_name: Optional[str] = Field(default=None, max_length=100)
     bio: Optional[str] = Field(default=None, max_length=1000)
     phone_number: Optional[str] = Field(default=None, max_length=20)
-    gender: Optional[GenderPreference] = None
+    gender: Optional[UserGender] = None
 
     @field_validator("display_name")
     @classmethod
@@ -267,6 +270,64 @@ class UserUpdateRequest(BaseModel):
     @classmethod
     def strip_bio(cls, v: Optional[str]) -> Optional[str]:
         return v.strip() if v else None
+
+
+class SeekerPreferences(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    occupation: str = Field(min_length=1, max_length=100)
+    # Whole naira, as displayed in the profile form (not listing prices in kobo).
+    budget_min: int = Field(ge=0, le=1_000_000_000, strict=True)
+    budget_max: int = Field(ge=0, le=1_000_000_000, strict=True)
+    preferred_location: str = Field(default="", max_length=200)
+    move_in_timeline: Literal["within_1_month", "within_3_months", "within_6_months", "flexible"] = "within_1_month"
+    sleep_schedule: Optional[Literal["early_bird", "night_owl", "flexible"]] = None
+    cleanliness: Optional[Literal["very_tidy", "moderate", "relaxed"]] = None
+    noise_level: Optional[Literal["quiet", "moderate", "lively"]] = None
+    guests: Optional[Literal["rarely", "sometimes", "often"]] = None
+    smoking: Optional[Literal["no", "yes", "outdoors_only"]] = None
+    pets: Optional[Literal["no_pets", "have_pets", "pet_friendly"]] = None
+
+    @model_validator(mode="after")
+    def ordered_budget(self) -> "SeekerPreferences":
+        if self.budget_max < self.budget_min:
+            raise ValueError("Maximum budget must be at least the minimum budget.")
+        return self
+
+
+class UserSelfResponse(UserPublicResponse):
+    date_of_birth: Optional[datetime] = None
+    seeker_preferences: Optional[SeekerPreferences] = None
+
+
+class CompleteProfileRequest(BaseModel):
+    display_name: str = Field(min_length=1, max_length=100)
+    bio: Optional[str] = Field(default=None, max_length=1000)
+    gender: Optional[UserGender] = None
+    phone_number: Optional[str] = Field(default=None, pattern=r"^\+[1-9][0-9]{7,14}$")
+    date_of_birth: Optional[datetime] = None
+    seeker_preferences: Optional[SeekerPreferences] = None
+
+    @model_validator(mode="after")
+    def validate_seeker_details(self) -> "CompleteProfileRequest":
+        if self.date_of_birth:
+            if self.date_of_birth.date() >= datetime.now(timezone.utc).date():
+                raise ValueError("Date of birth must be in the past.")
+            if self.date_of_birth.tzinfo is None:
+                self.date_of_birth = self.date_of_birth.replace(tzinfo=timezone.utc)
+        if self.seeker_preferences is not None:
+            if not self.phone_number or not self.date_of_birth or self.gender is None:
+                raise ValueError("Date of birth, gender and phone number are required.")
+            if self.bio and len(self.bio) > 200:
+                raise ValueError("Short bio must be at most 200 characters.")
+        return self
+
+    @field_validator("display_name", mode="before")
+    @classmethod
+    def require_display_name(cls, value: str) -> str:
+        if not isinstance(value, str) or not value.strip():
+            raise ValueError("Display name is required.")
+        return value.strip()
 
 
 class UserRoleUpdateRequest(BaseModel):
@@ -398,8 +459,43 @@ class ListingResponse(BaseModel):
         return v
 
 
+class PublicListingOwner(BaseModel):
+    model_config = _orm_config
+
+    display_name: Optional[str] = None
+
+
+class PublicListingResponse(BaseModel):
+    """Published listing data only; never expose account/contact/session fields."""
+    model_config = _orm_config
+
+    id: str
+    owner: PublicListingOwner
+    title: str
+    description: str
+    property_type: PropertyType
+    address: str
+    city: str
+    state: str
+    country: str
+    monthly_rent: int = Field(description="Monthly rent in minor units (kobo for NGN)")
+    available_from: Optional[datetime] = None
+    amenities: Optional[list[str]] = None
+    is_available: bool
+    images: list[ListingImageResponse] = []
+    created_at: datetime
+
+    @field_validator("amenities", mode="before")
+    @classmethod
+    def parse_amenities(cls, value: Any) -> Optional[list[str]]:
+        if isinstance(value, str):
+            return [item.strip() for item in value.split(",") if item.strip()]
+        return value
+
+
 class ListingSearchParams(BaseModel):
     city: Optional[str] = None
+    area: Optional[str] = Field(default=None, max_length=100)
     min_rent: Optional[int] = Field(default=None, ge=0)
     max_rent: Optional[int] = Field(default=None, ge=0)
     gender_preference: Optional[GenderPreference] = None
@@ -588,18 +684,15 @@ class ResetPasswordRequest(BaseModel):
     @field_validator("new_password")
     @classmethod
     def validate_password_strength(cls, v: str) -> str:
-        import re
-        pattern = re.compile(r"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{6,50}$")
-        if not pattern.match(v):
+        if not _PASSWORD_PATTERN.fullmatch(v):
             raise ValueError(
                 "Password must be 6-50 characters and contain at least "
-                "one uppercase letter, one lowercase letter, and one digit."
+                "one uppercase letter, one lowercase letter, one number, and one special character."
             )
         return v
 
-# ═══════════════════════════════════════════════════════════════════════════════
-#  GOOGLE OAUTH SCHEMAS
-# ═══════════════════════════════════════════════════════════════════════════════
+# GOOGLE OAUTH SCHEMAS
+
 class GoogleAuthURLResponse(BaseModel):
     auth_url: str
 
