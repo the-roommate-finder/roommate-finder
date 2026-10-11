@@ -20,6 +20,7 @@ from sqlalchemy import (
     text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.dialects.postgresql import JSONB
 
 from app.core.database import Base
 
@@ -39,6 +40,11 @@ class PropertyType(str, enum.Enum):
     STUDIO = "studio"
     ROOM = "room"
     SHARED = "shared"
+
+
+class UserGender(str, enum.Enum):
+    MALE = "male"
+    FEMALE = "female"
 
 
 class GenderPreference(str, enum.Enum):
@@ -127,15 +133,19 @@ class User(Base):
     )
 
     # Profile
+    is_profile_complete: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=text("false"), nullable=False
+    )
     display_name: Mapped[Optional[str]] = mapped_column(String(100))
     bio: Mapped[Optional[str]] = mapped_column(Text)
     avatar_url: Mapped[Optional[str]] = mapped_column(String(500))
     phone_number: Mapped[Optional[str]] = mapped_column(String(20), unique=True)
     is_phone_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    gender: Mapped[Optional[GenderPreference]] = mapped_column(
-        Enum(GenderPreference, name="gender_preference", values_callable=lambda x: [e.value for e in x])
+    gender: Mapped[Optional[UserGender]] = mapped_column(
+        Enum(UserGender, name="user_gender", values_callable=lambda x: [e.value for e in x])
     )
     date_of_birth: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    seeker_preferences: Mapped[Optional[dict]] = mapped_column(JSONB)
 
     # Status flags
     is_active: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
