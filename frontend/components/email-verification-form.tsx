@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 import Link from 'next/link';
 import { Check, X } from 'lucide-react';
 import { LogoSlot } from './auth-shell';
@@ -28,7 +28,8 @@ export function EmailVerificationForm({ email }: { email: string }) {
   const [motion, setMotion] = useState<VerificationMotion>('idle');
   const lifecycle = useRef<AbortController | null>(null);
 
-  useEffect(() => {
+  // Initialize cancellation before an autofill/input event can start verification.
+  useLayoutEffect(() => {
     const controller = new AbortController();
     lifecycle.current = controller;
     return () => controller.abort();
@@ -68,7 +69,7 @@ export function EmailVerificationForm({ email }: { email: string }) {
       if (signal.aborted) return;
       setDigits(Array(6).fill(''));
       if (result.ok) {
-        if (result.user?.role === 'seeker' && !result.user.is_profile_complete) setContinueTo('/create-profile');
+        if (result.user?.role === 'seeker') setContinueTo(result.user.is_profile_complete ? '/dashboard' : '/create-profile');
         succeeded = true;
         setMotion('success');
         await motionDelay(700, signal, reducedMotion);

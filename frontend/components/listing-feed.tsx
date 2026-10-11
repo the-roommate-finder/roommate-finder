@@ -20,7 +20,7 @@ export function listingPrice(minorUnits: number): string {
   return `NGN${number}/month`;
 }
 
-function postedAt(value: string): string {
+export function postedAt(value: string): string {
   const date = new Date(value);
   if (!Number.isFinite(date.getTime())) return '';
   const days = Math.max(0, Math.floor((Date.now() - date.getTime()) / 86400000));
@@ -28,7 +28,7 @@ function postedAt(value: string): string {
   return `Posted ${days} ${days === 1 ? 'day' : 'days'} ago`;
 }
 
-function photo(listing: PublicListing): string | undefined {
+export function photo(listing: PublicListing): string | undefined {
   const images = [...listing.images].sort((a, b) => Number(b.is_primary) - Number(a.is_primary) || a.sort_order - b.sort_order);
   for (const image of images) {
     for (const url of [image.cdn_url, image.thumbnail_cdn_url]) {

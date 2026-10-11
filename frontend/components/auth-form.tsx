@@ -33,6 +33,7 @@ export function AuthForm({ mode, role = 'seeker' }: { mode: 'signup' | 'login'; 
       const body = { email: address, password: String(data.get('password')), ...(signup ? { display_name: String(data.get('name')).trim(), role } : {}) };
       const result = await request(signup ? 'register' : 'login', body);
       if (signup) { router.push('/verify-email'); }
+      else if (result.user?.role === 'seeker') { router.push(result.user.is_profile_complete ? '/dashboard' : '/create-profile'); router.refresh(); }
       else { setNotice(`Welcome back${result.user?.display_name ? `, ${result.user.display_name}` : ''}. You’re signed in.`); }
     } catch (e) { setError(e instanceof Error ? e.message : 'Unable to connect. Please try again.'); }
     finally { setBusy(false); }

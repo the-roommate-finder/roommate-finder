@@ -116,7 +116,7 @@ export function SeekerProfileForm() {
             ...Object.fromEntries(habits.map(habit => [habit.key, choices[habit.key] || null])) },
         }),
       });
-      router.push('/'); router.refresh();
+      router.push('/dashboard'); router.refresh();
     } catch (error) { setError(error instanceof Error ? error.message : 'Unable to save your profile. Please try again.'); }
     finally { lock.current = false; setBusy(false); }
   }
@@ -171,7 +171,7 @@ export function SeekerProfileForm() {
         <button type="submit" className="primary-button profile-submit">{busy ? 'Saving…' : 'Save & Continue'}</button>
         {uploadFailed && photo && <button type="submit" data-skip-photo="true" className="profile-upload-link profile-save-without-photo">Save without photo</button>}
       </fieldset>
-      <p className="profile-skip">Not ready yet? {busy ? <span>Skip for now</span> : <Link href="/">Skip for now</Link>}</p>
+      <p className="profile-skip">Not ready yet? {busy ? <span>Skip for now</span> : <Link href="/dashboard">Skip for now</Link>}</p>
     </form>
   </section></main>;
 }

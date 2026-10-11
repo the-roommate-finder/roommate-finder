@@ -8,6 +8,11 @@ type Endpoint = {
 const uuid = '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}';
 const conversation = `chat/conversations/${uuid}`;
 const endpoints: Endpoint[] = [
+  { path: /^dashboard$/, methods: { GET: { query: ['city', 'area', 'room_page', 'roommate_page', 'page_size', 'mode', 'location', 'min_rent', 'max_rent', 'property_type', 'amenities', 'available_by', 'min_budget', 'max_budget', 'sleep_schedule', 'cleanliness', 'move_in_timeline', 'saved_sort'] } } },
+  { path: new RegExp(`^dashboard/saved/(room/${uuid}|roommate/RMF-[0-9]{6})$`), methods: { PUT: {}, DELETE: {} } },
+  { path: /^dashboard\/searches$/, methods: { POST: { fields: ['city', 'area', 'kind'] } } },
+  { path: /^notifications$/, methods: { GET: { query: ['page', 'page_size', 'unread_only'] } } },
+  { path: /^notifications\/unread-count$/, methods: { GET: {} } },
   { path: /^users\/me$/, methods: {
     GET: {}, PATCH: { fields: ['display_name', 'bio', 'phone_number', 'gender'] },
   } },

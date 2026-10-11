@@ -798,3 +798,21 @@ class PasswordReset(Base):
         Index("ix_password_resets_token", "token_hash"),
         Index("ix_password_resets_user", "user_id", "is_used"),
     )
+
+
+class DashboardBookmark(Base):
+    __tablename__ = "dashboard_bookmarks"
+    user_id: Mapped[str] = mapped_column(String(12), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    kind: Mapped[str] = mapped_column(String(8), primary_key=True)
+    target_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class DashboardSearch(Base):
+    __tablename__ = "dashboard_searches"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id: Mapped[str] = mapped_column(String(12), ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    city: Mapped[str] = mapped_column(String(100), nullable=False)
+    area: Mapped[str] = mapped_column(String(100), nullable=False)
+    kind: Mapped[str] = mapped_column(String(8), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.clock_timestamp(), nullable=False)
