@@ -1,0 +1,37 @@
+.dashboard-main.dashboard-notification-preferences { padding: 20px 24px 88px 20px; }
+.notification-preferences { min-height: calc(100dvh - 186px); }
+.notification-preferences-heading { display: flex; align-items: flex-start; gap: 20px; }
+.notification-preferences-heading > a { display: grid; place-items: center; color: #222; width: 24px; height: 44px; flex-shrink: 0; }
+.notification-preferences-heading > div { min-width: 0; padding-top: 10px; }
+.notification-preferences-heading h1 { margin: 0 0 10px; font-size: 18px; line-height: 26px; font-weight: 500; }
+.notification-preferences-heading p { margin: 0; font-size: 14px; line-height: 22px; }
+.seeker-dashboard .notification-preferences-save { margin-left: auto; flex-shrink: 0; background: var(--dashboard-blue); border: 0; border-radius: 22px; color: white; padding: 14px 22px; min-height: 48px; font-size: 16px; line-height: 20px; }
+.seeker-dashboard .notification-preferences-save:disabled { opacity: 1; cursor: default; }
+.notification-preferences-content { margin: 48px 0 0 44px; width: min(356px, calc(100% - 44px)); }
+.notification-preferences-content fieldset { padding: 0; margin: 0 0 32px; border: 0; min-width: 0; }
+.notification-preferences-content fieldset:last-child { margin-bottom: 0; }
+.notification-preferences-content legend { font-size: 14px; font-weight: 650; margin-bottom: 10px; padding: 0; }
+.notification-preferences-row { display: flex; align-items: center; justify-content: space-between; gap: 24px; min-height: 44px; font-size: 16px; line-height: 22px; }
+.notification-preferences-row button { display: grid; align-items: center; width: 48px; min-height: 44px; padding: 0; background: transparent; border: 0; flex-shrink: 0; }
+.notification-switch-track { display: block; width: 48px; height: 24px; border-radius: 20px; background: #8d8d9f; padding: 3px; }
+.notification-switch-track > span { display: block; width: 18px; height: 18px; border-radius: 50%; background: white; transition: transform .15s ease; }
+.notification-preferences-row [aria-checked='true'] .notification-switch-track { background: var(--dashboard-blue); }
+.notification-preferences-row [aria-checked='true'] .notification-switch-track > span { transform: translateX(24px); }
+.notification-preferences-error, .notification-preferences-success { margin: 0 0 20px; font-size: 14px; line-height: 1.6; }
+.notification-preferences-error { color: #b42318; }
+.notification-preferences-error p { margin: 0 0 10px; }
+.notification-preferences-error button { border: 1px solid #ccc; border-radius: 20px; padding: 6px 16px; background: white; color: var(--dashboard-blue); }
+.notification-preferences-success { color: #087443; }
+@media (max-width: 760px) {
+  .dashboard-main.dashboard-notification-preferences { padding: 20px 20px 48px; }
+  .notification-preferences-heading { flex-wrap: wrap; gap: 12px; }
+  .notification-preferences-heading > div { flex: 1; }
+  .seeker-dashboard .notification-preferences-save { margin: 12px 0 0 36px; }
+  .notification-preferences-content { margin-left: 36px; width: calc(100% - 36px); margin-top: 36px; }
+  .notification-preferences-row { gap: 12px; padding-block: 2px; }
+}
+@media (max-width: 380px) {
+  .notification-preferences-content { margin-left: 0; width: 100%; }
+  .notification-preferences-row { font-size: 15px; }
+}
+@media (prefers-reduced-motion: reduce) { .notification-switch-track > span { transition: none; } }

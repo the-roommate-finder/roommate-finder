@@ -235,3 +235,19 @@ test('profile settings enforce ownership fields and deletion clears cookies only
     } else assert.equal(response.headers.get('set-cookie'), null);
   }
 });
+
+test('notification preferences proxy validates origin and fields and forwards authenticated updates', async () => {
+  const path = 'notifications/preferences';
+  const payload = { new_messages: false, promotions: false };
+  const { PUT, GET } = handlers(async (url, options) => {
+    assert.equal(url, 'http://127.0.0.1:8000/api/v1/notifications/preferences');
+    assert.equal(options.headers.Authorization, 'Bearer private-access');
+    if (options.method === 'PUT') assert.deepEqual(JSON.parse(options.body), payload);
+    return Response.json(payload);
+  });
+  assert.equal((await PUT(request(path, 'PUT', payload), context(path))).status, 200);
+  assert.deepEqual(await (await GET(request(path), context(path))).json(), payload);
+  assert.equal((await handlers(noUpstream).PUT(request(path, 'PUT', { ...payload, user_id: 'RMF-000002' }), context(path))).status, 400);
+  assert.equal((await handlers(noUpstream).PUT(request(path, 'PUT', payload, { origin: 'https://evil.example' }), context(path))).status, 403);
+  assert.equal((await handlers(noUpstream).GET(request(path, 'GET', undefined, { cookie: '' }), context(path))).status, 401);
+});

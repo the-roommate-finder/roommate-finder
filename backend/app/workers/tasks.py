@@ -420,21 +420,30 @@ def dispatch_notification(
     from sqlalchemy import create_engine
     from sqlalchemy.orm import Session
 
-    from app.api.v1.models.models import Notification, NotificationType
+    from app.api.v1.models.models import Notification, NotificationType, User
+    from app.utils.notification_preferences import notification_allowed
 
     sync_url = settings.DATABASE_URL.replace("+asyncpg", "")
     engine = create_engine(sync_url)
 
-    with Session(engine) as session:
-        notification = Notification(
-            user_id=user_id,
-            notification_type=NotificationType(notification_type),
-            title=title,
-            body=body,
-            data=json.dumps(data) if data else None,
-        )
-        session.add(notification)
-        session.commit()
+    try:
+        with Session(engine) as session:
+            recipient = session.get(User, user_id)
+            if not recipient or not recipient.is_active or recipient.is_deleted:
+                return
+            if not notification_allowed(recipient.notification_preferences, NotificationType(notification_type), data):
+                return
+            notification = Notification(
+                user_id=user_id,
+                notification_type=NotificationType(notification_type),
+                title=title,
+                body=body,
+                data=json.dumps(data) if data else None,
+            )
+            session.add(notification)
+            session.commit()
+    finally:
+        engine.dispose()
 
     logger.info(
         "notification_dispatched",

@@ -649,6 +649,21 @@ class WebSocketSignal(BaseModel):
 
 
 #  NOTIFICATION SCHEMAS
+class NotificationPreferences(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    new_messages: bool = True
+    new_rooms: bool = True
+    new_matching_roommates: bool = True
+    listing_unavailable: bool = True
+    saved_listing_updates: bool = True
+    login_alerts: bool = True
+    verification_updates: bool = True
+    account_activity: bool = True
+    product_updates: bool = True
+    promotions: bool = True
+
+
 class NotificationResponse(BaseModel):
     model_config = _orm_config
 

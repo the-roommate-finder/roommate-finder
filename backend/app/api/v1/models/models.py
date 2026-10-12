@@ -149,6 +149,9 @@ class User(Base):
     )
     date_of_birth: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     seeker_preferences: Mapped[Optional[dict]] = mapped_column(JSONB)
+    notification_preferences: Mapped[dict] = mapped_column(
+        JSONB, default=dict, server_default=text("'{}'::jsonb"), nullable=False
+    )
 
     # Status flags
     is_active: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)

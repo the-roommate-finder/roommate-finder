@@ -1,14 +1,31 @@
-from fastapi import APIRouter, Query, status
+from fastapi import APIRouter, Query, Response, status
 
-from app.api.v1.dependencies import CurrentUser, NotificationServiceDep
+from app.api.v1.dependencies import CurrentUser, DbDep, NotificationServiceDep
+from app.api.v1.repositories.user_repository import UserRepository
 from app.api.v1.schemas.schemas import (
     MarkNotificationsReadRequest,
     MessageResponse,
     NotificationResponse,
     PaginatedResponse,
+    NotificationPreferences,
 )
 
 router = APIRouter(prefix="/notifications", tags=["Notifications"])
+
+
+@router.get("/preferences", response_model=NotificationPreferences)
+async def get_preferences(current_user: CurrentUser, response: Response):
+    response.headers["Cache-Control"] = "no-store"
+    return NotificationPreferences.model_validate(current_user.notification_preferences)
+
+
+@router.put("/preferences", response_model=NotificationPreferences)
+async def save_preferences(body: NotificationPreferences, current_user: CurrentUser, db: DbDep, response: Response):
+    response.headers["Cache-Control"] = "no-store"
+    # Save the complete screen in one transaction, scoped to the signed-in account.
+    preferences = body.model_dump()
+    await UserRepository(db).update(current_user, notification_preferences=preferences)
+    return preferences
 
 
 @router.get(

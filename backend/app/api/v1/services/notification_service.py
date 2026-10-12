@@ -95,7 +95,15 @@ class NotificationService:
         title: str,
         body: str,
         data: dict | None = None,
-    ) -> Notification:
+    ) -> Notification | None:
+        from sqlalchemy import select
+        from app.utils.notification_preferences import notification_allowed
+
+        recipient = (await self._repo.db.execute(select(User).where(User.id == user_id))).scalar_one_or_none()
+        if not recipient or not recipient.is_active or recipient.is_deleted:
+            return None
+        if not notification_allowed(recipient.notification_preferences, notification_type, data):
+            return None
         return await self._repo.create(
             user_id=user_id,
             notification_type=notification_type,

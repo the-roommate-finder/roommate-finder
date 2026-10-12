@@ -13,6 +13,7 @@ const endpoints: Endpoint[] = [
   { path: /^dashboard\/searches$/, methods: { POST: { fields: ['city', 'area', 'kind'] } } },
   { path: /^notifications$/, methods: { GET: { query: ['page', 'page_size', 'unread_only'] } } },
   { path: /^notifications\/unread-count$/, methods: { GET: {} } },
+  { path: /^notifications\/preferences$/, methods: { GET: {}, PUT: { fields: ['new_messages', 'new_rooms', 'new_matching_roommates', 'listing_unavailable', 'saved_listing_updates', 'login_alerts', 'verification_updates', 'account_activity', 'product_updates', 'promotions'] } } },
   { path: /^users\/me$/, methods: {
     GET: {}, DELETE: {}, PATCH: { fields: ['display_name', 'bio', 'phone_number', 'gender'] },
   } },
