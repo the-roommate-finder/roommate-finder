@@ -4,6 +4,8 @@ import structlog
 from fastapi import HTTPException, status
 
 from app.api.v1.models.models import User, UserRole
+from sqlalchemy import select
+from datetime import datetime, timezone
 from app.api.v1.repositories.chat_repository import (
     BlockedUserRepository,
     ChatKeyRepository,
@@ -49,6 +51,11 @@ class ChatService:
                 detail="Cannot create a conversation with yourself.",
             )
 
+        target = (await self._convs.db.execute(select(User).where(User.id == target_user_id,
+            User.is_active.is_(True), User.is_deleted.is_(False)))).scalar_one_or_none()
+        if not target:
+            raise HTTPException(404, "User not found.")
+
         # Check block status in both directions
         if await self._blocked.is_either_blocked(requesting_user.id, target_user_id):
             raise HTTPException(
@@ -56,6 +63,9 @@ class ChatService:
                 detail="You cannot message this user.",
             )
 
+        # The same pair can open Messages simultaneously (including two tabs).
+        await self._convs.db.execute(select(User.id).where(User.id.in_(
+            [requesting_user.id, target_user_id])).order_by(User.id).with_for_update())
         existing = await self._convs.get_between_users(
             requesting_user.id, target_user_id
         )
@@ -88,13 +98,16 @@ class ChatService:
             offset=offset,
             limit=page_size,
         )
-        return PaginatedResponse(
-            items=[ConversationResponse.model_validate(c) for c in conversations],
-            total=len(conversations),  # TODO: separate count query for large datasets
-            page=page,
-            page_size=page_size,
-            pages=1,
-        )
+        latest = await self._msgs.latest_for_conversations([c.id for c in conversations])
+        total = await self._convs.count_user_conversations(user.id, include_archived)
+        items = []
+        for conversation in conversations:
+            item = ConversationResponse.model_validate(conversation)
+            if conversation.id in latest:
+                item.last_message = ChatMessageResponse.model_validate(latest[conversation.id])
+            items.append(item)
+        return PaginatedResponse(items=items, total=total, page=page,
+            page_size=page_size, pages=(total + page_size - 1) // page_size)
 
     async def get_conversation(
         self, conversation_id: str, requesting_user: User
@@ -140,7 +153,13 @@ class ChatService:
         data: SendMessageRequest,
         sender: User,
     ) -> ChatMessageResponse:
-        await self._get_conversation_or_raise(conversation_id, sender.id)
+        conversation = await self._get_conversation_or_raise(conversation_id, sender.id)
+        for participant in conversation.participants:
+            if participant.user_id != sender.id and (
+                not participant.user.is_active or participant.user.is_deleted or
+                await self._blocked.is_either_blocked(sender.id, participant.user_id)
+            ):
+                raise HTTPException(403, "You cannot message this user.")
 
         # Validate reply target exists in same conversation
         if data.reply_to_id:
@@ -181,8 +200,16 @@ class ChatService:
         messages = await self._msgs.get_conversation_messages(
             conversation_id, before_id=before_id, limit=min(limit, 100)
         )
-        # Mark as read
-        await self._participants.mark_read(conversation_id, user.id)
+        # Update only messages actually returned; loading older history does not
+        # clear unread newer messages that the recipient has not fetched.
+        if not before_id:
+            await self._participants.mark_read(conversation_id, user.id)
+        now = datetime.now(timezone.utc)
+        for message in messages:
+            if message.sender_id != user.id and message.seen_at is None:
+                message.seen_at = now
+                message.delivered_at = message.delivered_at or now
+        await self._msgs.db.flush()
 
         return [ChatMessageResponse.model_validate(m) for m in messages]
 
@@ -289,6 +316,14 @@ class ChatService:
     async def upsert_chat_key(
         self, user: User, public_key: str
     ) -> ChatKeyResponse:
+        # Serialize first publication across devices and never silently replace
+        # a key that existing message history depends on.
+        await self._keys.db.execute(select(User.id).where(User.id == user.id).with_for_update())
+        existing = await self._keys.get_by_user_id(user.id)
+        if existing:
+            if existing.public_key != public_key:
+                raise HTTPException(409, "A messaging key already exists. Use your original browser.")
+            return ChatKeyResponse.model_validate(existing)
         key = await self._keys.upsert(user.id, public_key)
         return ChatKeyResponse.model_validate(key)
 

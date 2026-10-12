@@ -50,7 +50,7 @@ export function DashboardBrowseFilters({ initial, busy, onApply }: { initial: Br
     <form className="browse-filter-form" onSubmit={apply} onInvalid={event => { const details = (event.target as HTMLElement).closest('details'); if (details) details.open = true; }}>
       <label className="browse-location"><span><MapPin size={17} />Where do you want to live?</span><input placeholder="City or area" aria-label="City or area" maxLength={200} value={draft.location} onChange={event => update('location', event.target.value)} /></label>
       <h2>{room ? 'Room Filters' : 'Roommate Filters'}</h2>
-      <div className="browse-accordions">
+      <div className="browse-accordions" key={draft.kind}>
         <details><summary>{room ? 'Price range' : 'Budget range'}<ChevronDown size={16} /></summary><div className="browse-fields browse-price-fields">
           <label>Minimum monthly {room ? 'rent' : 'budget'} (₦)<input type="number" min="0" max="1000000000" step={room ? '0.01' : '1'} placeholder="No minimum" value={draft.min} onChange={event => update('min', event.target.value)} /></label>
           <label>Maximum monthly {room ? 'rent' : 'budget'} (₦)<input type="number" min="0" max="1000000000" step={room ? '0.01' : '1'} placeholder="No maximum" value={draft.max} onChange={event => update('max', event.target.value)} /></label>

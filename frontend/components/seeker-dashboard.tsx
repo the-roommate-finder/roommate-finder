@@ -3,8 +3,11 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
-import { ArrowRight, Bell, ChevronDown, Heart, Home, LogOut, MapPin, Menu, MessageSquare, Search, Star, UserRound, X } from 'lucide-react';
+import { ArrowRight, Bell, ChevronDown, Heart, Home, LogOut, MapPin, Menu, MessageSquare, Search, SlidersHorizontal, Star, UserRound, X } from 'lucide-react';
 import { DashboardBrowseFilters, EMPTY_BROWSE, browseQuery, type BrowseFilters } from './dashboard-browse-filters';
+import { DashboardProfile } from './dashboard-profile';
+import { ChatProfile } from './chat-profile';
+import { DashboardMessages } from './dashboard-messages';
 import { RoomCard } from './room-card';
 import { RoommateCard } from './roommate-card';
 import { listingPrice, photo, postedAt, type PublicListing } from './listing-feed';
@@ -15,10 +18,10 @@ type Preferences = { occupation: string; budget_min: number; budget_max: number;
   sleep_schedule?: string; cleanliness?: string; noise_level?: string; guests?: string; smoking?: string; pets?: string };
 type Person = { id: string; display_name: string | null; age: number | null; avatar_url: string | null; bio: string | null; updated_at: string; preferences: Preferences };
 type Page<T> = { items: T[]; total: number; page: number; pages: number };
-type Dashboard = { user: { display_name: string | null; is_profile_complete: boolean; seeker_preferences?: Preferences | null };
+type Dashboard = { user: { id: string; display_name: string | null; is_profile_complete: boolean; seeker_preferences?: Preferences | null };
   rooms: Page<PublicListing>; roommates: Page<Person>; saved: { kind: Kind; id: string }[];
   recent_saved: PublicListing[]; searches: (Filters & { id: string })[]; match_count: number };
-type Selection = { kind: 'room'; item: PublicListing } | { kind: 'roommate'; item: Person } | { kind: 'messages' } | { kind: 'notifications' };
+type Selection = { kind: 'room'; item: PublicListing } | { kind: 'roommate'; item: Person } | { kind: 'notifications' };
 type Notification = { id: string; title: string; body: string; is_read: boolean };
 const EMPTY_FILTERS: Filters = { city: '', area: '', kind: 'roommate' };
 const labels: Record<string, string> = { early_bird: 'Early Bird', night_owl: 'Night Owl', flexible: 'Flexible', very_tidy: 'Very Tidy', moderate: 'Moderate', relaxed: 'Relaxed', quiet: 'Quiet', lively: 'Lively', rarely: 'Rarely', sometimes: 'Sometimes', often: 'Often', no: 'Non Smoker', yes: 'Smoker', outdoors_only: 'Outdoors Only', no_pets: 'No Pets', have_pets: 'Have Pets', pet_friendly: 'Pet Friendly' };
@@ -34,9 +37,11 @@ function budget(person: Person) {
 function safeImage(url: string | null) { return url && (/^https?:\/\//i.test(url) || /^\/(?!\/)/.test(url)) ? url : undefined; }
 function personName(person: Person) { return `${person.display_name || 'Roommate'}${person.age !== null ? `, ${person.age} years` : ''}`; }
 
-export function SeekerDashboard({ initialView = 'home' }: { initialView?: 'home' | 'browse' }) {
+export function SeekerDashboard({ initialView = 'home', initialParticipant, initialConversation, initialDraft, profileConversation, initialSavedKind = 'room' }: { initialView?: 'home' | 'browse' | 'saved' | 'messages' | 'profile'; initialSavedKind?: Kind; initialParticipant?: string; initialConversation?: string; initialDraft?: string; profileConversation?: string }) {
   const router = useRouter();
-  const [view, setView] = useState<'home' | 'browse' | 'saved' | 'matches'>(initialView);
+  const [view, setView] = useState<'home' | 'browse' | 'saved' | 'matches' | 'messages' | 'profile'>(initialView);
+  const [savedKind, setSavedKind] = useState<Kind>(initialSavedKind);
+  const [savedSort, setSavedSort] = useState('recent');
   const [menu, setMenu] = useState(false);
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
   const [applied, setApplied] = useState<Filters>(EMPTY_FILTERS);
@@ -74,13 +79,17 @@ export function SeekerDashboard({ initialView = 'home' }: { initialView?: 'home'
   const queryParams = new URLSearchParams({ city: applied.city, area: applied.area, room_page: String(pages.room), roommate_page: String(pages.roommate),
     page_size: view === 'home' ? '3' : view === 'browse' ? '6' : '9', mode: view === 'saved' ? 'saved' : view === 'matches' ? 'matches' : 'all' });
   if (view === 'browse' && appliedBrowse) browseQuery(appliedBrowse).forEach((value, key) => queryParams.set(key, value));
+  if (view === 'saved') queryParams.set('saved_sort', savedSort);
   const query = queryParams.toString();
   const loadKey = `${query}:${refresh}`;
   const loading = resolvedKey !== loadKey;
   useEffect(() => {
     const controller = new AbortController();
     const version = ++requestVersion.current;
-    request<Dashboard>(`dashboard?${query}`, { signal: controller.signal }).then(result => {
+    const load = view === 'messages' || view === 'profile'
+      ? request<Dashboard['user']>('users/me', { signal: controller.signal }).then(user => ({ user, rooms: { items: [], total: 0, page: 1, pages: 0 }, roommates: { items: [], total: 0, page: 1, pages: 0 }, saved: [], recent_saved: [], searches: [], match_count: 0 } as Dashboard))
+      : request<Dashboard>(`dashboard?${query}`, { signal: controller.signal });
+    load.then(result => {
       if (requestVersion.current === version) {
         setData(result); setError('');
         const hour = new Date().getHours();
@@ -91,7 +100,7 @@ export function SeekerDashboard({ initialView = 'home' }: { initialView?: 'home'
     return () => controller.abort();
     // The query includes every server-side filter; request uses only the stable router.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query, loadKey, router]);
+  }, [query, loadKey, router, view]);
 
   useEffect(() => {
     if (selected && !dialog.current?.open) dialog.current?.showModal();
@@ -119,8 +128,10 @@ export function SeekerDashboard({ initialView = 'home' }: { initialView?: 'home'
   }, [menu]);
 
   function navigate(next: typeof view) {
+    if (next === 'messages' && (initialView !== 'messages' || profileConversation)) { router.push('/dashboard/messages'); return; }
     if (next === 'browse' && initialView !== 'browse') { router.push('/dashboard/browse'); return; }
-    if (next === 'home' && initialView === 'browse') { router.push('/dashboard'); return; }
+    if (next === 'saved' && initialView !== 'saved') { router.push('/dashboard/saved'); return; }
+    if (next === 'home' && initialView !== 'home') { router.push('/dashboard'); return; }
     setView(next); setPages({ room: 1, roommate: 1 }); setMenu(false); setActionError('');
     setApplied(EMPTY_FILTERS); setFilters(EMPTY_FILTERS); setBrowse(EMPTY_BROWSE); setAppliedBrowse(null);
   }
@@ -168,13 +179,13 @@ export function SeekerDashboard({ initialView = 'home' }: { initialView?: 'home'
   }
   function pagination(kind: Kind, result: Page<unknown>) {
     if (result.pages <= 1 && result.page === 1) return null;
-    return <nav className="dashboard-pagination" aria-label={`${kind} pages`}><button disabled={loading || result.page <= 1} onClick={() => setPages(current => ({ ...current, [kind]: current[kind] - 1 }))}>Previous</button>
-      <span>Page {result.page} of {Math.max(result.pages, 1)}</span><button disabled={loading || result.page >= result.pages} onClick={() => setPages(current => ({ ...current, [kind]: current[kind] + 1 }))}>Next</button></nav>;
+    return <nav className="dashboard-pagination" aria-label={`${kind} pages`}><button disabled={loading || result.page <= 1} onClick={() => setPages(current => ({ ...current, [kind]: result.page - 1 }))}>Previous</button>
+      <span>Page {result.page} of {Math.max(result.pages, 1)}</span><button disabled={loading || result.page >= result.pages} onClick={() => setPages(current => ({ ...current, [kind]: result.page + 1 }))}>Next</button></nav>;
   }
   function roomCard(room: PublicListing) {
     return <RoomCard key={room.id} title={room.title} location={`${room.city}, ${room.state}`} price={listingPrice(room.monthly_rent)} listedBy={room.owner.display_name || 'Property Lister'} posted={postedAt(room.created_at)}
       amenities={(room.amenities || []).slice(0, 2)} additionalAmenities={Math.max(0, (room.amenities?.length || 0) - 2)} available={room.is_available} image={photo(room)}
-      onViewDetails={() => setSelected({ kind: 'room', item: room })} saved={isSaved('room', room.id)} saving={!!saving} onToggleSave={() => toggleSave('room', room.id)} />;
+      onViewDetails={() => setSelected({ kind: 'room', item: room })} saveAction={view === 'saved' ? 'remove' : 'toggle'} saved={isSaved('room', room.id)} saving={!!saving} onToggleSave={() => toggleSave('room', room.id)} />;
   }
   const fullName = data?.user.display_name || 'Your account';
   const initials = fullName.split(/\s+/).slice(0, 2).map(name => name[0]).join('').toUpperCase();
@@ -190,8 +201,8 @@ export function SeekerDashboard({ initialView = 'home' }: { initialView?: 'home'
         <button className={view === 'home' ? 'active' : ''} aria-current={view === 'home' ? 'page' : undefined} onClick={() => navigate('home')}><Home />Home</button>
         <button className={view === 'browse' || view === 'matches' ? 'active' : ''} aria-current={view === 'browse' ? 'page' : undefined} onClick={() => navigate('browse')}><Search />Browse</button>
         <button className={view === 'saved' ? 'active' : ''} aria-current={view === 'saved' ? 'page' : undefined} onClick={() => navigate('saved')}><Heart />Saved</button>
-        <button onClick={() => { setMenu(false); setSelected({ kind: 'messages' }); }}><MessageSquare />Messages</button>
-        <Link href="/create-profile"><UserRound />Profile</Link>
+        <button className={view === 'messages' ? 'active' : ''} aria-current={view === 'messages' ? 'page' : undefined} onClick={() => navigate('messages')}><MessageSquare />Messages</button>
+        <Link href="/dashboard/profile" className={view === 'profile' ? 'active' : ''} aria-current={view === 'profile' ? 'page' : undefined}><UserRound />Profile</Link>
       </nav>
       <button className="dashboard-logout" disabled={loggingOut} onClick={logout}><LogOut />{loggingOut ? 'Signing out…' : 'Log Out'}</button>
     </aside>
@@ -201,11 +212,25 @@ export function SeekerDashboard({ initialView = 'home' }: { initialView?: 'home'
         <span className="dashboard-header-title">Dashboard</span>
         <div className="dashboard-account"><span className="dashboard-location"><MapPin size={16} />{location || 'Set your location'}</span>
           <button className="dashboard-bell" aria-label="Notifications" onClick={() => showNotifications()}><Bell size={20} /></button>
-          <Link href="/create-profile" className="dashboard-user"><span className="dashboard-avatar">{data ? initials : '…'}</span><span>{fullName}</span></Link>
+          <Link href="/dashboard/profile" className="dashboard-user"><span className="dashboard-avatar">{data ? initials : '…'}</span><span>{fullName}</span></Link>
         </div>
       </header>
-      <main className={`dashboard-main ${view === 'browse' ? 'dashboard-browse' : ''}`} >
-        {view === 'browse' ? <DashboardBrowseFilters initial={browse} busy={loading} onApply={applyBrowse} /> : <>
+      <main className={`dashboard-main ${view === 'profile' ? 'dashboard-own-profile' : view === 'browse' ? 'dashboard-browse' : view === 'saved' ? 'dashboard-saved' : view === 'messages' ? (profileConversation ? 'dashboard-profile-main' : 'dashboard-messages-main') : ''}`} >
+        {actionError && <p className="dashboard-error" role="alert">{actionError}</p>}
+        {view === 'profile' ? <DashboardProfile onLogout={logout} loggingOut={loggingOut} onNotifications={() => showNotifications()} /> : view === 'messages' ? <>{error ? <div className="dashboard-empty" role="alert">{error}<button onClick={() => setRefresh(value => value + 1)}>Try again</button></div> : data ? (profileConversation ? <ChatProfile key={profileConversation} conversationId={profileConversation} /> : <DashboardMessages userId={data.user.id} initialParticipant={initialParticipant} initialConversation={initialConversation} initialDraft={initialDraft} />) : <p role="status">Loading messages…</p>}</> : <>
+        {view === 'saved' ? <>
+          <div className="dashboard-saved-heading"><h1>Saved</h1><p>Keep track of rooms and roommates you’re interested in.</p>
+            <div className="dashboard-saved-tabs" role="group" aria-label="Saved category">
+              {(['room', 'roommate'] as const).map(kind => <button key={kind} type="button" aria-pressed={savedKind === kind} onClick={() => { setSavedKind(kind); setActionError(''); }}>{kind === 'room' ? 'Rooms' : 'Roommates'}</button>)}
+            </div>
+          </div>
+          <div className="dashboard-saved-toolbar"><h2>{savedKind === 'room' ? 'Saved rooms' : 'Saved roommates'}{!loading && !error && data ? ` (${savedKind === 'room' ? data.rooms.total : data.roommates.total})` : ''}</h2>
+            <label className="dashboard-saved-sort"><SlidersHorizontal size={18} aria-hidden="true" /><select aria-label="Sort saved items" value={savedSort} onChange={event => { setSavedSort(event.target.value); setPages({ room: 1, roommate: 1 }); }}>
+              <option value="recent">Recently Saved</option><option value="oldest">Oldest Saved</option>
+              <option value="price_low">{savedKind === 'room' ? 'Price' : 'Budget'}: Low to High</option><option value="price_high">{savedKind === 'room' ? 'Price' : 'Budget'}: High to Low</option>
+            </select></label>
+          </div>
+        </> : view === 'browse' ? <DashboardBrowseFilters initial={browse} busy={loading} onApply={applyBrowse} /> : <>
         <div className="dashboard-welcome"><h1>{greeting}{data?.user.display_name ? `, ${data.user.display_name.split(' ')[0]}` : ''} <span aria-hidden="true">👋</span></h1>
           <p>Find a room or roommate that fits your needs.</p></div>
         <form className="dashboard-search" onSubmit={event => { event.preventDefault(); void search(filters); }}>
@@ -214,18 +239,17 @@ export function SeekerDashboard({ initialView = 'home' }: { initialView?: 'home'
           <label><span>What are you looking for?</span><span className="dashboard-search-input"><select aria-label="Looking for" value={filters.kind} onChange={event => setFilters({ ...filters, kind: event.target.value as Kind })}><option value="roommate">A Roommate</option><option value="room">A Room</option></select><ChevronDown size={16} /></span></label>
           <button className="primary-button" disabled={searching || loading}>{searching ? 'Searching…' : 'Search Now'}<Search size={18} /></button>
         </form></>}
-        {actionError && <p className="dashboard-error" role="alert">{actionError}</p>}
         <section className={`dashboard-recommendations ${view === 'browse' && (appliedBrowse?.kind || browse.kind) === 'roommate' ? 'browse-roommates-first' : ''}`} aria-label={sectionTitle} aria-busy={loading}>
-          {view !== 'browse' && <div className="dashboard-section-heading"><h2>{sectionTitle}</h2>{view === 'home' && <button onClick={() => navigate('browse')}>View all recommendations</button>}{view !== 'home' && <button onClick={() => navigate('home')}>Back to home</button>}</div>}
-          {error && !loading ? <div className="dashboard-empty" role="alert"><p>{error}</p><button onClick={() => setRefresh(value => value + 1)}>Try again</button></div> : loading ? <div className="dashboard-loading" role="status">Loading your recommendations…<div className="dashboard-grid">{[1, 2, 3].map(id => <div className="dashboard-skeleton" key={id} />)}</div></div> : data && <>
-            {(view === 'home' || view === 'saved' || view === 'matches' || view === 'browse' || applied.kind === 'roommate') && <section className="dashboard-card-section dashboard-roommates"><h3>{view === 'saved' ? 'Saved roommates' : 'Roommates for you'}</h3>
+          {view !== 'browse' && view !== 'saved' && <div className="dashboard-section-heading"><h2>{sectionTitle}</h2>{view === 'home' && <button onClick={() => navigate('browse')}>View all recommendations</button>}{view !== 'home' && <button onClick={() => navigate('home')}>Back to home</button>}</div>}
+          {error && !loading ? <div className="dashboard-empty" role="alert"><p>{error}</p><button onClick={() => setRefresh(value => value + 1)}>Try again</button></div> : loading ? <div className="dashboard-loading" role="status">{view === 'saved' ? 'Loading your saved items…' : 'Loading your recommendations…'}<div className="dashboard-grid">{[1, 2, 3].map(id => <div className="dashboard-skeleton" key={id} />)}</div></div> : data && <>
+            {(view !== 'saved' || savedKind === 'roommate') && <section className="dashboard-card-section dashboard-roommates">{view !== 'saved' && <h3>Roommates for you</h3>}
               {data.roommates.items.length ? <div className="dashboard-grid">{data.roommates.items.map(person => { const allTraits = traits(person); return <RoommateCard key={person.id} name={personName(person)} occupation={person.preferences.occupation}
                 location={person.preferences.preferred_location || 'Location not specified'} budget={budget(person)} traits={[...allTraits.slice(0, 2), ...(allTraits.length > 2 ? [`+${allTraits.length - 2} more`] : [])]} updated={postedAt(person.updated_at).replace('Posted', 'Profile updated')}
                 image={safeImage(person.avatar_url)} moveIn={timelines[person.preferences.move_in_timeline || ''] || 'Move-in date not specified'} onViewProfile={() => setSelected({ kind: 'roommate', item: person })}
-                saved={isSaved('roommate', person.id)} saving={!!saving} onToggleSave={() => toggleSave('roommate', person.id)} />; })}</div>
+                saveAction={view === 'saved' ? 'remove' : 'toggle'} saved={isSaved('roommate', person.id)} saving={!!saving} onToggleSave={() => toggleSave('roommate', person.id)} />; })}</div>
                 : <div className="dashboard-empty"><UserRound /><p>{view === 'saved' ? 'Your saved roommates will appear here.' : view === 'matches' ? 'No matching roommates yet. Complete your lifestyle preferences to find people with similar habits.' : 'No roommates found yet. Try a different location or check back soon.'}</p></div>}{pagination('roommate', data.roommates)}
             </section>}
-            {(view === 'home' || view === 'saved' || view === 'browse') && <section className="dashboard-card-section dashboard-rooms"><h3>{view === 'saved' ? 'Saved rooms' : 'Rooms for you'}</h3>
+            {(view === 'home' || (view === 'saved' && savedKind === 'room') || view === 'browse') && <section className="dashboard-card-section dashboard-rooms">{view !== 'saved' && <h3>Rooms for you</h3>}
               {data.rooms.items.length ? <div className="dashboard-grid">{data.rooms.items.map(roomCard)}</div> : <div className="dashboard-empty"><Home /><p>{view === 'saved' ? 'Save a room using the heart icon to find it here.' : 'No rooms found yet. New available listings will appear here.'}</p></div>}{pagination('room', data.rooms)}
             </section>}
           </>}
@@ -236,18 +260,18 @@ export function SeekerDashboard({ initialView = 'home' }: { initialView?: 'home'
               // eslint-disable-next-line @next/next/no-img-element
               <img src={photo(room)} alt="" onError={event => { event.currentTarget.style.visibility = 'hidden'; }} />}</span>
             <span><strong>{room.title}</strong><small>{listingPrice(room.monthly_rent)}</small></span></button>) : <p>Rooms you save will appear here.</p>}</article>
-          <article><h3>Recent Searches</h3><div className="dashboard-search-chips">{data.searches.length ? data.searches.map(item => <button key={item.id} disabled={searching} onClick={() => search(item)}>{[item.area, item.city, item.kind === 'room' ? 'Rooms' : 'Roommates'].filter(Boolean).join(' · ')}</button>) : <p>Your recent searches will appear here.</p>}</div></article>
+          <article id="recent-searches"><h3>Recent Searches</h3><div className="dashboard-search-chips">{data.searches.length ? data.searches.map(item => <button key={item.id} disabled={searching} onClick={() => search(item)}>{[item.area, item.city, item.kind === 'room' ? 'Rooms' : 'Roommates'].filter(Boolean).join(' · ')}</button>) : <p>Your recent searches will appear here.</p>}</div></article>
           <article><h3>Roommate Matches</h3><div className="dashboard-match"><span>{data.match_count}</span><p><strong>Roommate matches</strong><small>Based on your preferred sleep schedule &amp; tidy habits.</small></p></div><button className="dashboard-match-link" onClick={() => navigate('matches')}>View matches <ArrowRight size={16} /></button></article>
         </div></section>}
-        {view !== 'browse' && data && !data.user.is_profile_complete && <aside className="dashboard-complete"><span className="dashboard-star"><Star size={23} /></span><div><strong>Complete your profile settings</strong><p>Add a few details about your lifestyle to get more relevant room and roommate recommendations.</p></div><Link className="primary-button" href="/create-profile">Complete Profile</Link></aside>}
+        {view !== 'browse' && view !== 'saved' && data && !data.user.is_profile_complete && <aside className="dashboard-complete"><span className="dashboard-star"><Star size={23} /></span><div><strong>Complete your profile settings</strong><p>Add a few details about your lifestyle to get more relevant room and roommate recommendations.</p></div><Link className="primary-button" href="/create-profile">Complete Profile</Link></aside>}
+        </>}
       </main>
     </div>
     <dialog className="dashboard-dialog" ref={dialog} aria-labelledby="dashboard-dialog-title" onClose={() => setSelected(null)} onClick={event => { if (event.target === event.currentTarget) setSelected(null); }}>
       <div><button className="dashboard-dialog-close" aria-label="Close details" onClick={() => setSelected(null)}><X /></button>
-        <h2 id="dashboard-dialog-title">{selected?.kind === 'room' ? selected.item.title : selected?.kind === 'roommate' ? personName(selected.item) : selected?.kind === 'notifications' ? 'Notifications' : 'Messages'}</h2>
+        <h2 id="dashboard-dialog-title">{selected?.kind === 'room' ? selected.item.title : selected?.kind === 'roommate' ? personName(selected.item) : 'Notifications'}</h2>
         {selected?.kind === 'room' && <><p className="dashboard-detail-price">{listingPrice(selected.item.monthly_rent)}</p><p>{selected.item.address}, {selected.item.city}, {selected.item.state}</p><p className="dashboard-description">{selected.item.description}</p><div className="dashboard-detail-tags">{selected.item.amenities?.map(item => <span key={item}>{item}</span>)}</div><p>Listed by {selected.item.owner.display_name || 'Property Lister'}</p><p>{selected.item.available_from ? `Available from ${new Date(selected.item.available_from).toLocaleDateString()}` : 'Available now'}</p></>}
-        {selected?.kind === 'roommate' && <><p>{selected.item.preferences.occupation}</p><p>{selected.item.preferences.preferred_location || 'Location not specified'}</p><p className="dashboard-detail-price">{budget(selected.item)}</p><p>{timelines[selected.item.preferences.move_in_timeline || ''] || 'Move-in date not specified'}</p><div className="dashboard-detail-tags">{traits(selected.item).map((item, index) => <span key={`${item}-${index}`}>{item}</span>)}</div><p className="dashboard-description">{selected.item.bio || 'No bio added yet.'}</p></>}
-        {selected?.kind === 'messages' && <p>The messages screen is not available yet.</p>}
+        {selected?.kind === 'roommate' && <><p>{selected.item.preferences.occupation}</p><p>{selected.item.preferences.preferred_location || 'Location not specified'}</p><p className="dashboard-detail-price">{budget(selected.item)}</p><p>{timelines[selected.item.preferences.move_in_timeline || ''] || 'Move-in date not specified'}</p><div className="dashboard-detail-tags">{traits(selected.item).map((item, index) => <span key={`${item}-${index}`}>{item}</span>)}</div><p className="dashboard-description">{selected.item.bio || 'No bio added yet.'}</p><Link className="primary-button" href={`/dashboard/messages?participant=${selected.item.id}`}>Message</Link></>}
         {selected?.kind === 'notifications' && (notificationsLoading ? <p role="status">Loading notifications…</p> : notificationError ? <p role="alert">{notificationError} <button onClick={() => showNotifications(notificationPage)}>Try again</button></p> : <>
           {notifications.length ? <ul className="dashboard-notifications">{notifications.map(item => <li key={item.id}><strong>{item.title}{!item.is_read && <span className="dashboard-unread">Unread</span>}</strong><p>{item.body}</p></li>)}</ul> : <p>No notifications yet.</p>}
           {notificationsTotal > 10 && <div className="dashboard-pagination"><button disabled={notificationPage === 1} onClick={() => showNotifications(notificationPage - 1)}>Previous</button><span>Page {notificationPage}</span><button disabled={notificationPage * 10 >= notificationsTotal} onClick={() => showNotifications(notificationPage + 1)}>Next</button></div>}

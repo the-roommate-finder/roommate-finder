@@ -106,10 +106,10 @@ test('signed-out and cross-site requests never reach the backend', async () => {
 
 test('only explicit member paths and methods are exposed', async () => {
   const { GET, PATCH, DELETE } = handlers(noUpstream);
-  for (const path of ['auth/login', `users/${id}/role`, 'users/me/sessions', 'chat/conversations/invalid-id', 'users/../auth']) {
+  for (const path of ['auth/login', `users/${id}/role`, 'users/me/devices', 'chat/conversations/invalid-id', 'users/../auth']) {
     assert.equal((await GET(request(path), context(path))).status, 404);
   }
-  assert.equal((await DELETE(request('users/me', 'DELETE'), context('users/me'))).status, 405);
+  assert.equal((await DELETE(request('users/me/visibility', 'DELETE'), context('users/me/visibility'))).status, 405);
   assert.equal((await PATCH(request('users/me', 'PATCH', { role: 'admin' }), context('users/me'))).status, 400);
 });
 
@@ -195,5 +195,43 @@ test('backend outages, non-JSON replies, and redirects do not leak internal resp
     assert.equal(response.status, 502);
     assert.equal(JSON.stringify(await response.json()).includes('Internal'), false);
     assert.equal(response.headers.get('location'), null);
+  }
+});
+
+test('chat public keys use account IDs and never forward private-key fields', async () => {
+  const path = 'chat/keys/RMF-000002';
+  const api = handlers(async url => {
+    assert.equal(url.endsWith('/chat/keys/RMF-000002'), true);
+    return Response.json({ public_key: 'public-key', user_id: 'RMF-000002' });
+  });
+  assert.equal((await api.GET(request(path), context(path))).status, 200);
+  const invalid = `chat/keys/${id}`;
+  assert.equal((await handlers(noUpstream).GET(request(invalid), context(invalid))).status, 404);
+  assert.equal((await handlers(noUpstream).PUT(request('chat/keys/me', 'PUT', { public_key: 'public-key', private_key: 'never-send' }), context('chat/keys/me'))).status, 400);
+});
+
+test('chat profile actions allow only scoped endpoints and report fields', async () => {
+  const api = handlers(async () => Response.json({ ok: true }));
+  for (const [suffix, method, body] of [['', 'GET'], ['/block', 'PUT'], ['/block', 'DELETE'], ['/report', 'POST', { reason: 'scam', details: 'A report description.' }]]) {
+    const path = `chat/conversations/${id}/profile${suffix}`;
+    assert.equal((await api[method](request(path, method, body), context(path))).status, 200);
+    assert.equal((await handlers(noUpstream)[method](request(path, method, body, { cookie: '' }), context(path))).status, 401);
+  }
+  const path = `chat/conversations/${id}/profile/report`;
+  assert.equal((await handlers(noUpstream).POST(request(path, 'POST', { reason: 'scam', details: 'A report description.', reported_id: 'RMF-000002' }), context(path))).status, 400);
+});
+
+
+test('profile settings enforce ownership fields and deletion clears cookies only on success', async () => {
+  const visibility = 'users/me/visibility';
+  assert.equal((await handlers(noUpstream).PATCH(request(visibility, 'PATCH', { is_profile_visible: false, user_id: 'RMF-000002' }), context(visibility))).status, 400);
+  assert.equal((await handlers(noUpstream).DELETE(request('users/me', 'DELETE', undefined, { origin: 'https://attacker.example' }), context('users/me'))).status, 403);
+  for (const status of [200, 409]) {
+    const response = await handlers(async () => Response.json({ message: 'Result' }, { status })).DELETE(request('users/me', 'DELETE'), context('users/me'));
+    assert.equal(response.status, status);
+    if (status === 200) {
+      assert.match(response.headers.get('set-cookie'), /rmf_access=;/);
+      assert.match(response.headers.get('set-cookie'), /rmf_refresh=;/);
+    } else assert.equal(response.headers.get('set-cookie'), null);
   }
 });

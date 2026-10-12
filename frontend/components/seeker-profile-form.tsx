@@ -26,7 +26,7 @@ async function memberRequest(path: string, init?: RequestInit) {
   return data as Profile;
 }
 
-export function SeekerProfileForm() {
+export function SeekerProfileForm({ editing = false }: { editing?: boolean }) {
   const router = useRouter();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -116,17 +116,17 @@ export function SeekerProfileForm() {
             ...Object.fromEntries(habits.map(habit => [habit.key, choices[habit.key] || null])) },
         }),
       });
-      router.push('/dashboard'); router.refresh();
+      router.push(editing ? '/dashboard/profile' : '/dashboard'); router.refresh();
     } catch (error) { setError(error instanceof Error ? error.message : 'Unable to save your profile. Please try again.'); }
     finally { lock.current = false; setBusy(false); }
   }
 
   const preferences = profile?.seeker_preferences;
   return <main className="profile-page"><section className="profile-card" aria-labelledby="profile-title">
-    <header className="profile-heading"><LogoSlot /><h1 id="profile-title">Create Your Profile</h1>
+    <header className="profile-heading"><LogoSlot /><h1 id="profile-title">{editing ? 'Edit Your Profile' : 'Create Your Profile'}</h1>
       <p>Tell us about yourself so we can find your ideal roommate match</p></header>
     <form onSubmit={save} noValidate aria-busy={loading || busy}>
-      <div className="profile-photo">
+      <div className="profile-photo" id="profile-photo">
         <input ref={fileInput} type="file" accept="image/png,image/jpeg" aria-label="Choose profile photo" className="sr-only" tabIndex={-1} onChange={choosePhoto} disabled={busy} />
         <button type="button" className="profile-photo-button" aria-label="Upload profile photo" disabled={busy} onClick={() => fileInput.current?.click()}>
           {preview || profile?.avatar_url ? /* User-uploaded images can come from the configured storage provider. */
@@ -168,10 +168,10 @@ export function SeekerProfileForm() {
           <label className="profile-field"><span className="profile-bio-label">Short Bio <small>Max 200 characters</small></span><textarea name="bio" maxLength={200} value={bio} onChange={event => setBio(event.target.value)} placeholder="Tell potential roommates a little about yourself..." /></label>
         </section>
         {profile && error && <p className="profile-error" role="alert">{error}</p>}
-        <button type="submit" className="primary-button profile-submit">{busy ? 'Saving…' : 'Save & Continue'}</button>
+        <button type="submit" className="primary-button profile-submit">{busy ? 'Saving…' : editing ? 'Save Changes' : 'Save & Continue'}</button>
         {uploadFailed && photo && <button type="submit" data-skip-photo="true" className="profile-upload-link profile-save-without-photo">Save without photo</button>}
       </fieldset>
-      <p className="profile-skip">Not ready yet? {busy ? <span>Skip for now</span> : <Link href="/dashboard">Skip for now</Link>}</p>
+      <p className="profile-skip">{editing ? 'Finished editing?' : 'Not ready yet?'} {busy ? <span>Skip for now</span> : <Link href={editing ? '/dashboard/profile' : '/dashboard'}>{editing ? 'Back to profile' : 'Skip for now'}</Link>}</p>
     </form>
   </section></main>;
 }

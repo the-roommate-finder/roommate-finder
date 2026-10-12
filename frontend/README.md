@@ -21,6 +21,7 @@ The FastAPI backend should be running at `http://127.0.0.1:8000`.
 - `/signup?role=seeker|lister`: frame 1072:6496, registration and password confirmation.
 - `/login`: frame 1072:6592, login and password visibility.
 - `/reset-password?token=…`: set and confirm a new password using the emailed reset link; styled to match the existing auth screens.
+- `/dashboard`: authenticated seeker dashboard, implemented from the supplied screenshot.
 - `/create-profile`: seeker onboarding built from the supplied screenshot, with a reserved logo slot.
 - `/preview/room-card`: frame 1226:11520, reusable room card with explicit sample content.
 - `/`: landing page with navigation, live listing search/cards, how-it-works steps,
@@ -90,15 +91,15 @@ It has six code boxes, automatic verification, paste/autofill support, resend,
 and backend error messages. The brand logo remains a reserved space. A short-lived
 HttpOnly cookie remembers the pending email across refreshes; OTPs are not stored.
 Successful verification establishes the session and shows a confirmation with a
-link to `/create-profile` for seekers who have not completed their profile, or home
-for other accounts. Visiting without a pending registration email redirects to signup.
+link to `/create-profile` for seekers who have not completed their profile, `/dashboard`
+for completed seekers, or home for other accounts. Visiting without a pending registration email redirects to signup.
 `/forgot-password` requests the existing backend reset link. `/reset-password`
 reads its token, validates the new password and confirmation, then sends
 `token` and `new_password` to the backend. Missing, expired and used links offer
 a fresh reset email. Success clears stale session cookies and links to login;
 the backend revokes sessions. Reset pages use no-referrer and noindex metadata.
-Dashboard/lister-profile routing and session refresh/logout are still
-pending the remaining screens. Google login is explicitly unavailable in this
+Seeker login opens `/dashboard` for completed profiles and `/create-profile` otherwise.
+Lister dashboard/profile routing and automatic session refresh remain pending. Google login is explicitly unavailable in this
 UI; its browser-to-backend-to-frontend callback integration is not yet implemented.
 The backend rate limiter currently sees this Next.js server's IP for these
 requests; deployment needs a trusted proxy/client-IP policy before production use.
@@ -126,7 +127,7 @@ Supported paths (after `/api/member/`) are:
 | `chat/conversations/:uuid/messages/:uuid` | PATCH, DELETE |
 | `chat/conversations/:uuid/messages/:uuid/reactions` | POST |
 | `chat/keys/me` | PUT |
-| `chat/keys/:uuid` | GET |
+| `chat/keys/:account-id` | GET |
 
 Paths, methods, query parameters, and JSON field names are allowlisted. FastAPI
 still validates field values and enforces conversation membership/ownership.
@@ -136,10 +137,9 @@ followed. Automatic session refresh and block/unblock transport
 are not included in this preparation.
 
 Chat transport accepts the backend's `encrypted_content` and `encryption_nonce`
-contract; it does **not** implement or verify encryption. Browser key generation,
-private-key storage, encryption/decryption, recovery, and the chat UI still need
-implementation before users can send messages. The tests use mocked backend
-responses and send no messages or profile changes to real users.
+contract. The Messages screen now encrypts/decrypts in the browser; see the
+Dashboard Messages section for key storage and recovery limitations. Browser tests
+use isolated fixtures and send no messages to real users.
 
 The seeker profile now uses the supplied screenshot because Figma MCP remains
 quota-limited. It loads the signed-in user's details, uploads an optional photo
@@ -148,13 +148,14 @@ through the existing storage endpoint, and saves personal details plus typed
 Lifestyle choices are optional and start unselected; only selected choices turn
 blue. Unanswered choices remain unset in storage. Invalid required details show
 a message beside Save & Continue and focus the affected input.
-Birth date and preferences are returned only by self-profile endpoints. Apply
-backend migrations through `0006_user_gender.py` before using this screen.
+Birth date is returned only by self-profile endpoints. The authenticated seeker
+feed shares matching preferences, age and profile details without contact information.
+Apply backend migrations through `0007_dashboard_activity.py`.
 Profile gender accepts only Male or Female in the form, API and database.
 Migration 0006 clears any legacy unsupported gender and marks that profile
 incomplete so its owner can choose again; existing Male/Female values are retained.
-Save & Continue returns home after a successful save; Skip for now returns home
-without marking the profile complete. The dashboard destination remains pending.
+Save & Continue opens `/dashboard` after a successful save; Skip for now opens
+the same dashboard without marking the profile complete.
 Actual photo delivery requires the backend's S3 storage configuration; automated
 tests mock storage delivery. When photo upload fails, form entries are retained
 and an explicit Save without photo action lets the user complete their profile;
@@ -169,8 +170,7 @@ retrieved component (`1226:11520`); the full room-grid context (`1226:11519`)
 could not be retrieved. Available references and the structure are saved under
 `../design-reference/landing-*` so they do not need to be fetched again.
 
-Lister profile setup, dashboard, browse, saved, messages and settings
-also remain pending. These missing sections/screens are not claimed as matched.
+Lister profile setup/dashboard, the exact messages design and settings remain pending. These missing sections/screens are not claimed as matched.
 Only the standalone design preview uses sample listing content.
 
 ## Checks
@@ -188,3 +188,122 @@ npx playwright test
 Browser tests require the local frontend on port 3000 and Google Chrome at
 `/usr/bin/google-chrome` (adjust `playwright.config.ts` on another machine).
 API responses are mocked in browser tests; tests send no real email.
+
+## Seeker dashboard
+
+`/dashboard` uses the provided dashboard screenshot: navy sidebar, header, search,
+roommate/room cards, activity and conditional profile-completion prompt. The desktop
+grid has three columns and adapts to two/one; mobile navigation has a hamburger.
+Logo and missing photo areas remain reserved. There are no sample profiles, rooms
+or fabricated counts in the production dashboard.
+
+The member proxy allowlists `GET dashboard`, `PUT/DELETE dashboard/saved/:kind/:id`,
+`POST dashboard/searches` and `GET notifications`. Search supports city/area and
+room/roommate results with pagination. Saved and Matches reuse the dashboard
+layout; View Profile/Details opens the selected record. Roommate matches require
+both the same sleep schedule and cleanliness preference. Results are refreshed
+when entering a view or saving; use page refresh to fetch newly published records.
+Recent searches (five distinct entries) and saved rooms/roommates persist per account
+on the backend. Rent is monthly, in kobo; roommate budgets are whole naira.
+
+Logout calls the backend through `/api/auth/logout` and clears HttpOnly cookies.
+Messages opens `/dashboard/messages`, following the supplied chat reference.
+The dashboard sidebar logo slot is in `components/seeker-dashboard.tsx`.
+
+Validation: `tests/dashboard.spec.ts`, `tests/dashboard-transport.test.cjs` and
+`tests/seeker-profile.spec.ts`. Test directories are ignored by the project's
+requested `.gitignore` rules; include tests explicitly if committing them.
+
+### Dashboard Browse
+
+`/dashboard/browse` (also available from Browse in the sidebar) follows the supplied
+Browse screenshot: inset lavender filters, Rooms/Roommates controls, and six cards
+per page in each section. Missing images and the logo stay reserved.
+
+Rooms supports city/area, monthly price range, property type, comma-separated
+amenities (all must match), and availability now/by date. Roommates supports
+location, overlapping monthly budget, sleep schedule, cleanliness and move-in
+timeline. Room-specific filters do not hide the separate roommate section.
+The selected category is shown first after applying filters. Backend errors show
+a retry action; no matching records show an empty state. The filter form is
+keyboard accessible and stacks on mobile; Log Out stays at the sidebar bottom.
+Home searches still record recent city/area searches. Advanced Browse filters
+are kept for the current view, not persisted in recent-search history.
+
+Validation: `tests/dashboard-browse.spec.ts` and `../backend/tests/test_dashboard.py`.
+
+### Dashboard Saved
+
+`/dashboard/saved` shows the account's saved rooms and roommates in separate tabs,
+with live counts, nine cards per page and the reference's three-column desktop grid.
+The sort menu supports recently/oldest saved and ascending/descending monthly price
+(or minimum monthly budget for roommates). Trash buttons remove bookmarks only;
+failed requests keep cards visible and show an error. Removing the last item on a
+page returns the nearest remaining page. Empty accounts show no sample records.
+Logo and missing-photo spaces remain reserved, and Log Out stays at the bottom of
+the responsive sidebar. Validation: `tests/dashboard-saved.spec.ts`.
+
+### Dashboard Messages
+
+`/dashboard/messages` shares the dashboard header/sidebar and implements the supplied
+inbox/thread reference, with mobile list/thread navigation, All/Roommates/Listers
+filters, unread dots, phone-verification badges, message dates, and send/read status.
+Search matches names and decrypted previews on the current inbox page (20 conversations).
+It does not search the full message history. Empty accounts show no sample people.
+Open a roommate's View Profile dialog and choose Message to create/retrieve a DM.
+
+Conversations and open threads refresh every five seconds. Earlier messages use
+cursor pagination; previews do not mark a thread as read. Text sending preserves the
+draft on failure; Enter sends and Shift+Enter adds a newline. Emoji insertion and
+mute/pin settings work. Attachments remain visibly disabled because there is no
+chat-upload endpoint. Logo/avatar spaces remain reserved when no image exists.
+
+Browser encryption uses a versioned AES-256-GCM envelope, a fresh key/IV per message,
+and RSA-OAEP/SHA-256 wrapping for both participants. Conversation/sender IDs are bound
+as additional authenticated data. Non-exportable private CryptoKeys remain in
+account-scoped IndexedDB; only public JWKs, ciphertext and IVs reach the API. Uses the
+[Web Crypto key wrapping API](https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/wrapKey).
+HTTPS (or localhost), IndexedDB and Web Locks are required. Both people must first
+open Messages in their browser to publish keys. A missing/different local key disables
+sending and explains the problem; the app never silently replaces the server key.
+
+**Limitations:** keys are tied to the original browser profile. Clearing site data
+or changing devices prevents access to existing encrypted history. Backup/recovery,
+key verification, forward secrecy and multi-device key distribution are not implemented;
+this messaging protocol has not received an independent security review.
+Tests: `tests/dashboard-messages.spec.ts`, `tests/member-route.test.cjs`, and
+`../backend/tests/test_chat_api.py`. Test files remain ignored by the user's rules.
+
+
+### Chat participant profile
+
+Click a name/avatar in the conversation header to open
+`/dashboard/messages/:conversationId/profile`. The reference layout uses real bio,
+housing preferences, lifestyle, verification and activity data. Messages remains
+selected in the sidebar, and Back/Message return to that conversation. Conversation
+starters prefill the composer; the user must send explicitly. Save uses existing
+roommate bookmarks; Report submits a validated, persistent report; Block/Unblock
+controls messaging in both directions. Blocking and reporting have confirmation forms.
+
+Budgets retain their actual monthly units; move-in timeframes use saved preferences.
+There are no invented online, ID-verification or work-schedule claims. Unavailable
+fields show an empty state. The save action is available for eligible seeker profiles;
+lister bookmarks are not supported. Avatar/logo spaces remain reserved.
+Checks: `tests/chat-profile.spec.ts`, `tests/member-route.test.cjs`, backend
+`tests/test_chat_profile.py`. Run migration `0008_user_reports` before using reports.
+
+### Your dashboard profile
+
+`/dashboard/profile` shows the signed-in member’s saved details and account-specific
+activity, using the supplied reference layout. Profile strength measures five equally
+weighted sections: personal details, photo, housing preferences, lifestyle and bio.
+Edit buttons reuse `/create-profile?edit=1` and return to the profile after saving.
+The visibility switch persists to the backend and removes hidden profiles from
+Browse, recommendations and saved-roommate results; existing conversations remain.
+Settings open working notifications, active sessions/password reset, blocked users,
+privacy controls and a local help FAQ. Account deletion requires typing `DELETE`,
+soft-deletes the account, revokes sessions and clears authentication cookies. It does
+not permanently erase retained records. Identity verification is not available yet;
+the UI says so. The stored sleep schedule is displayed instead of inventing work style.
+Run migration `0009_profile_visibility` before using this screen. Browser checks live
+in `tests/dashboard-profile.spec.ts`; backend checks in `tests/test_dashboard_profile.py`.

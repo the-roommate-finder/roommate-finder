@@ -1,0 +1,68 @@
+.dashboard-profile-main { padding: 30px 20px 36px; max-width: none; }
+.chat-profile-heading { display: flex; align-items: center; gap: 20px; min-height: 68px; }
+.chat-profile-heading > a { display: grid; place-items: center; width: 24px; flex-shrink: 0; }
+.chat-profile-photo { width: 68px; height: 68px; flex-shrink: 0; border-radius: 50%; background: #e5e7eb; overflow: hidden; }
+.chat-profile-photo img { width: 100%; height: 100%; object-fit: cover; }
+.chat-profile-heading h1 { font-size: 24px; font-weight: 700; line-height: 1.4; margin: 0; color: #454545; overflow-wrap: anywhere; }
+.chat-profile-heading p { margin: 4px 0 0; font-size: 20px; color: #555; overflow-wrap: anywhere; }
+.chat-profile-heading > .profile-verified { margin-left: 38px; }
+.profile-verified { fill: #ffca00; color: white; flex-shrink: 0; }
+.chat-profile-buttons { display: flex; gap: 12px; margin: 36px 0 40px; }
+.chat-profile-buttons :is(a, button) { display: flex; align-items: center; justify-content: center; width: 134px; min-height: 36px; border: 1px solid #00003c; border-radius: 24px; color: #000080; background: transparent; font-size: 14px; }
+.chat-profile-buttons .profile-message { background: #000080; border-color: #000080; color: white; }
+.chat-profile-buttons button[aria-pressed='true'] { background: #ebebf5; }
+.chat-profile-columns { display: grid; grid-template-columns: minmax(0, 1.69fr) minmax(0, 1fr); gap: 22px; }
+.chat-profile-details, .chat-profile-aside { display: flex; flex-direction: column; gap: 30px; min-width: 0; }
+.profile-panel { padding: 20px; border-radius: 24px; background: white; border: 1px solid #f0f0f0; box-shadow: 0 2px 1px #00000026; }
+.profile-panel h2 { display: flex; align-items: center; gap: 20px; font-size: 14px; font-weight: 600; line-height: 20px; margin: 0 0 18px; }
+.profile-bio { font-size: 18px; line-height: 1.35; margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.profile-preferences { display: grid; grid-template-columns: 198px minmax(0, 1fr); row-gap: 8px; column-gap: 20px; font-size: 18px; line-height: 1.45; margin: 0; }
+.profile-preferences dd { margin: 0; overflow-wrap: anywhere; }
+.profile-traits { display: flex; flex-wrap: wrap; gap: 10px; }
+.profile-traits span { padding: 3px 10px; border: 1px solid #c5c5c5; border-radius: 4px; font-size: 12px; background: #e5e5e5; color: #404040; }
+.profile-traits p { margin: 0; }
+.profile-occupation { margin: 30px 0 0; font-size: 14px; }
+.profile-verifications { display: grid; gap: 14px; list-style: none; padding: 0; margin: 0; font-size: 14px; }
+.profile-verifications li { display: flex; gap: 14px; align-items: center; }
+.profile-activity { display: grid; grid-template-columns: 225px minmax(0, 1fr); gap: 20px; }
+.profile-activity h3 { margin: 0 0 12px; font-size: 14px; font-weight: 400; }
+.profile-activity time { font-size: 12px; }
+.profile-actions { padding: 12px 10px 10px; }
+.profile-actions h2 { color: #00003c; margin: 0 0 18px; }
+.profile-actions :is(a, button) { display: flex; align-items: center; gap: 16px; padding: 12px 0; border: 0; border-bottom: 1px solid #d5d5d7; width: 100%; text-align: left; background: transparent; font-size: 16px; }
+.profile-actions button:last-child { border-bottom: 0; }
+.profile-actions :is(a, button):hover { color: #000080; }
+.profile-safety { background: #eaf8f1; padding: 24px 20px 22px; }
+.profile-safety p { margin: 0; font-size: 16px; line-height: 1.5; }
+.profile-starters { padding: 12px 10px; }
+.profile-starters h2 { color: #00003c; margin-bottom: 16px; }
+.profile-starters h2 svg { margin-left: 34px; color: #151515; }
+.profile-starters p { margin: 0 0 18px; font-size: 14px; }
+.profile-starters a { display: table; max-width: 100%; border: 1px solid #d5d5d7; border-radius: 24px; padding: 10px; font-size: 14px; line-height: 1.5; margin-top: 16px; }
+.profile-starters a:hover { background: #ebebf5; }
+.profile-notice { padding: 12px 16px; margin: -20px 0 20px; background: #eaf8f1; border-radius: 12px; color: #17653d; }
+.profile-dialog { width: min(480px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); margin: auto; padding: 28px; border: 0; border-radius: 20px; background: white; }
+.profile-dialog::backdrop { background: #090a2d80; }
+.profile-dialog h2 { font-size: 20px; margin: 0 36px 24px 0; font-weight: 650; }
+.profile-dialog-close { position: absolute; top: 14px; right: 14px; border: 0; background: transparent; padding: 4px; }
+.profile-dialog p { font-size: 14px; line-height: 1.6; }
+.profile-dialog label { display: grid; gap: 8px; font-size: 14px; margin: 16px 0; }
+.profile-dialog :is(select, textarea) { width: 100%; padding: 10px 12px; border: 1px solid #ccc; border-radius: 8px; font: inherit; background: white; }
+.profile-dialog textarea { min-height: 120px; resize: vertical; }
+.profile-dialog .primary-button { width: 100%; margin-top: 24px; min-height: 44px; font-size: 14px; }
+@media (max-width: 1100px) { .chat-profile-columns { grid-template-columns: minmax(0, 1fr); } .chat-profile-aside { display: grid; grid-template-columns: 1fr 1fr; } .profile-starters { grid-column: 1 / -1; } }
+@media (max-width: 760px) {
+  .dashboard-profile-main { padding: 24px 16px 36px; }
+  .chat-profile-heading { gap: 12px; }
+  .chat-profile-heading h1 { font-size: 20px; }
+  .chat-profile-heading p { font-size: 14px; }
+  .chat-profile-heading > .profile-verified { margin-left: auto; }
+  .chat-profile-photo { width: 52px; height: 52px; }
+  .chat-profile-buttons { margin: 28px 0; }
+  .chat-profile-aside { display: flex; }
+  .chat-profile-details, .chat-profile-aside { gap: 20px; }
+  .profile-panel { padding: 20px 16px; border-radius: 20px; }
+  .profile-preferences { grid-template-columns: 1fr 1.2fr; gap: 12px; font-size: 14px; }
+  .profile-bio { font-size: 16px; }
+  .profile-activity { grid-template-columns: 1fr 1fr; gap: 14px; }
+}

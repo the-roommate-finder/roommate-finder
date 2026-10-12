@@ -14,8 +14,11 @@ const endpoints: Endpoint[] = [
   { path: /^notifications$/, methods: { GET: { query: ['page', 'page_size', 'unread_only'] } } },
   { path: /^notifications\/unread-count$/, methods: { GET: {} } },
   { path: /^users\/me$/, methods: {
-    GET: {}, PATCH: { fields: ['display_name', 'bio', 'phone_number', 'gender'] },
+    GET: {}, DELETE: {}, PATCH: { fields: ['display_name', 'bio', 'phone_number', 'gender'] },
   } },
+  { path: /^users\/me\/(profile-summary|blocked|sessions)$/, methods: { GET: {} } },
+  { path: /^users\/me\/visibility$/, methods: { PATCH: { fields: ['is_profile_visible'] } } },
+  { path: /^chat\/block\/RMF-[0-9]{6}$/, methods: { DELETE: {} } },
   { path: /^users\/me\/complete-profile$/, methods: {
     POST: { fields: ['display_name', 'bio', 'gender', 'phone_number', 'date_of_birth', 'seeker_preferences'] },
   } },
@@ -24,6 +27,9 @@ const endpoints: Endpoint[] = [
     GET: { query: ['include_archived', 'page', 'page_size'] },
     POST: { fields: ['participant_id'] },
   } },
+  { path: new RegExp(`^${conversation}/profile$`), methods: { GET: {} } },
+  { path: new RegExp(`^${conversation}/profile/block$`), methods: { PUT: {}, DELETE: {} } },
+  { path: new RegExp(`^${conversation}/profile/report$`), methods: { POST: { fields: ['reason', 'details'] } } },
   { path: new RegExp(`^${conversation}$`), methods: { GET: {} } },
   { path: new RegExp(`^${conversation}/settings$`), methods: {
     PATCH: { fields: ['is_muted', 'is_archived', 'is_pinned'] },
@@ -39,7 +45,7 @@ const endpoints: Endpoint[] = [
     POST: { fields: ['emoji'] },
   } },
   { path: /^chat\/keys\/me$/, methods: { PUT: { fields: ['public_key'] } } },
-  { path: new RegExp(`^chat/keys/${uuid}$`), methods: { GET: {} } },
+  { path: new RegExp(`^chat/keys/RMF-[0-9]{6}$`), methods: { GET: {} } },
 ];
 
 function json(data: unknown, status: number) {
@@ -141,6 +147,9 @@ async function handle(request: NextRequest, context: { params: Promise<{ path: s
     if (upstream.status === 204) return new NextResponse(null, { status: 204, headers: { 'Cache-Control': 'no-store' } });
     const data: unknown = await upstream.json();
     const response = json(upstream.ok ? data : { message: upstreamMessage(data) }, upstream.status);
+    if (upstream.ok && path === 'users/me' && request.method === 'DELETE') {
+      for (const name of ['rmf_access', 'rmf_refresh', 'rmf_verification_email']) response.cookies.delete(name);
+    }
     if (upstream.status === 429 && upstream.headers.has('retry-after')) {
       response.headers.set('Retry-After', upstream.headers.get('retry-after')!);
     }

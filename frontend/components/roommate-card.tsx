@@ -1,6 +1,6 @@
 'use client';
 
-import { Heart } from 'lucide-react';
+import { Heart, Trash2 } from 'lucide-react';
 import { DesignIcon } from './design-icon';
 
 export type RoommateCardProps = {
@@ -12,16 +12,16 @@ export type RoommateCardProps = {
   updated: string;
   image?: string;
   moveIn?: string;
-  saved?: boolean; saving?: boolean; onToggleSave?: () => void;
+  saveAction?: 'toggle' | 'remove'; saved?: boolean; saving?: boolean; onToggleSave?: () => void;
   onViewProfile: () => void;
 };
 
-export function RoommateCard({ name, occupation, location, budget, traits, updated, image, onViewProfile, moveIn = 'Ready to move in', saved, saving, onToggleSave }: RoommateCardProps) {
+export function RoommateCard({ name, occupation, location, budget, traits, updated, image, onViewProfile, moveIn = 'Ready to move in', saved, saving, onToggleSave, saveAction = 'toggle' }: RoommateCardProps) {
   return <article className="roommate-card" data-node-id="1226:11415">
     <div className="room-image-slot" data-asset-slot="roommate-image">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       {image && <img src={image} alt={name} width={408} height={256} onError={event => { event.currentTarget.style.visibility = 'hidden'; }} />}
-      {onToggleSave && <button type="button" className="card-save" aria-label={saved ? `Unsave ${name}` : `Save ${name}`} aria-pressed={!!saved} disabled={saving} onClick={onToggleSave}><Heart size={21} fill={saved ? 'currentColor' : 'none'} /></button>}
+      {onToggleSave && <button type="button" className="card-save" aria-label={saveAction === 'remove' ? `Remove ${name} from saved` : saved ? `Unsave ${name}` : `Save ${name}`} aria-pressed={saveAction === 'remove' ? undefined : !!saved} disabled={saving} onClick={onToggleSave}>{saveAction === 'remove' ? <Trash2 size={19} /> : <Heart size={21} fill={saved ? 'currentColor' : 'none'} />}</button>}
     </div>
     <div className="roommate-content">
       <div className="roommate-name"><h3>{name}</h3><span>{occupation}</span></div>

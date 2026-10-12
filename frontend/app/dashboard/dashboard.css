@@ -211,3 +211,30 @@
   .seeker-dashboard .browse-submit { border-radius: 16px; min-height: 48px; margin-top: 20px; }
   .dashboard-browse .dashboard-recommendations { margin-top: 36px; gap: 44px; }
 }
+
+/* Saved reference: category tabs, bookmark sorting and the shared listing cards. */
+.dashboard-saved { padding-top: 32px; }
+.dashboard-saved-heading { display: grid; grid-template-columns: 1fr auto; column-gap: 24px; }
+.dashboard-saved-heading h1 { grid-column: 1 / -1; margin: 0 0 8px; font-size: 18px; font-weight: 500; line-height: 1.5; }
+.dashboard-saved-heading p { margin: 0; font-size: 14px; line-height: 1.5; }
+.dashboard-saved-tabs { display: flex; gap: 12px; align-items: baseline; }
+.dashboard-saved-tabs button { border: 0; background: transparent; padding: 0; color: #37373f; font-size: 16px; }
+.dashboard-saved-tabs button[aria-pressed='true'] { text-decoration: underline; text-underline-offset: 4px; color: #343151; }
+.dashboard-saved-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin: 64px 0 34px; }
+.dashboard-saved-toolbar h2 { margin: 0; font-size: 14px; font-weight: 400; }
+.dashboard-saved-sort { display: flex; align-items: center; gap: 10px; padding: 6px 10px; border: 1px solid #d6d6dc; border-radius: 4px; color: #45454a; }
+.dashboard-saved-sort svg { flex-shrink: 0; }
+.dashboard-saved-sort select { min-width: 0; max-width: 165px; padding: 0; border: 0; background: transparent; color: inherit; font-size: 12px; cursor: pointer; }
+.dashboard-saved .dashboard-recommendations { margin-top: 0; }
+.dashboard-saved .dashboard-grid { row-gap: 40px; }
+@media (max-width: 760px) {
+  .dashboard-saved-heading { grid-template-columns: minmax(0, 1fr); row-gap: 12px; }
+  .dashboard-saved-heading h1 { margin-bottom: 0; }
+  .dashboard-saved-tabs { justify-self: end; }
+  .dashboard-saved-tabs button { min-height: 40px; }
+  .dashboard-saved-toolbar { margin-top: 28px; margin-bottom: 24px; }
+  .dashboard-saved-sort { gap: 6px; padding: 8px; }
+  .dashboard-saved-sort select { max-width: 130px; }
+  .dashboard-saved-toolbar h2 { font-size: 12px; }
+  .dashboard-saved .dashboard-grid { row-gap: 24px; }
+}

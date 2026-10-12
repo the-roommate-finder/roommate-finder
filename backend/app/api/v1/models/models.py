@@ -133,6 +133,9 @@ class User(Base):
     )
 
     # Profile
+    is_profile_visible: Mapped[bool] = mapped_column(
+        Boolean, default=True, server_default=text("true"), nullable=False
+    )
     is_profile_complete: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default=text("false"), nullable=False
     )
@@ -816,3 +819,16 @@ class DashboardSearch(Base):
     area: Mapped[str] = mapped_column(String(100), nullable=False)
     kind: Mapped[str] = mapped_column(String(8), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.clock_timestamp(), nullable=False)
+
+
+class UserReport(Base):
+    __tablename__ = "user_reports"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    reporter_id: Mapped[str] = mapped_column(String(12), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    reported_id: Mapped[str] = mapped_column(String(12), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    conversation_id: Mapped[str] = mapped_column(String(36), ForeignKey("conversations.id", ondelete="CASCADE"), nullable=False)
+    reason: Mapped[str] = mapped_column(String(40), nullable=False)
+    details: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(String(20), default="pending", server_default="pending", nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    __table_args__ = (UniqueConstraint("reporter_id", "conversation_id", name="uq_reporter_conversation"),)

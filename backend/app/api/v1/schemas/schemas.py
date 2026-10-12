@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from typing import Any, Generic, Literal, Optional, TypeVar
 
 from pydantic import (
+    AliasPath,
     BaseModel,
     ConfigDict,
     EmailStr,
@@ -296,6 +297,7 @@ class SeekerPreferences(BaseModel):
 
 
 class UserSelfResponse(UserPublicResponse):
+    is_profile_visible: bool = True
     date_of_birth: Optional[datetime] = None
     seeker_preferences: Optional[SeekerPreferences] = None
 
@@ -517,7 +519,17 @@ class ListingSearchParams(BaseModel):
 
 #  CHAT SCHEMAS
 class ConversationCreateRequest(BaseModel):
-    participant_id: str = Field(description="UUID of the other participant")
+    participant_id: str = Field(pattern=r"^RMF-\d{6}$", description="Account ID of the other participant")
+
+
+class ChatUserResponse(BaseModel):
+    model_config = _orm_config
+    id: str
+    display_name: Optional[str] = None
+    avatar_url: Optional[str] = None
+    location: Optional[str] = Field(default=None, validation_alias=AliasPath("seeker_preferences", "preferred_location"))
+    role: UserRole
+    is_phone_verified: bool = False
 
 
 class ConversationResponse(BaseModel):
@@ -525,6 +537,7 @@ class ConversationResponse(BaseModel):
 
     id: str
     participants: list["ConversationParticipantResponse"] = []
+    last_message: Optional["ChatMessageResponse"] = None
     last_message_at: Optional[datetime] = None
     created_at: datetime
 
@@ -533,7 +546,7 @@ class ConversationParticipantResponse(BaseModel):
     model_config = _orm_config
 
     id: str
-    user: UserPublicResponse
+    user: ChatUserResponse
     is_muted: bool
     is_archived: bool
     is_pinned: bool

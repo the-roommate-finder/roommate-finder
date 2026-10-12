@@ -1,4 +1,7 @@
-from fastapi import APIRouter, HTTPException, UploadFile, status
+from datetime import datetime, timezone
+from fastapi import APIRouter, HTTPException, UploadFile, Response, status
+from pydantic import BaseModel, ConfigDict, StrictBool
+from sqlalchemy import select, func, update
 from sqlalchemy.exc import IntegrityError
 from botocore.exceptions import BotoCoreError, ClientError
 import structlog
@@ -9,7 +12,8 @@ from app.api.v1.dependencies import (
     DbDep,
     require_admin,
 )
-from app.api.v1.models.models import UserRole
+from app.api.v1.models.models import (UserRole, User, DashboardBookmark, DashboardSearch,
+    Listing, ConversationParticipant, BlockedUser, UserSession, RefreshToken)
 from app.api.v1.repositories.user_repository import (
     DeviceRepository,
     SecurityEventRepository,
@@ -30,6 +34,60 @@ from app.core.config import settings
 from app.utils.storage import StorageClient
 
 router = APIRouter(prefix="/users", tags=["Users"])
+
+
+class VisibilityRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    is_profile_visible: StrictBool
+
+
+@router.get("/me/profile-summary")
+async def profile_summary(current_user: CurrentUser, db: DbDep, response: Response):
+    from app.api.v1.routers.dashboard import visible_rooms, visible_roommates
+    response.headers["Cache-Control"] = "no-store"
+    uid = current_user.id
+    async def count(statement):
+        return (await db.execute(statement)).scalar_one()
+    saved_rooms = await count(select(func.count()).select_from(DashboardBookmark).join(
+        Listing, Listing.id == DashboardBookmark.target_id).where(
+        DashboardBookmark.user_id == uid, DashboardBookmark.kind == "room", *visible_rooms()))
+    saved_roommates = await count(select(func.count()).select_from(DashboardBookmark).join(
+        User, User.id == DashboardBookmark.target_id).where(
+        DashboardBookmark.user_id == uid, DashboardBookmark.kind == "roommate", *visible_roommates(uid)))
+    conversations = await count(select(func.count()).select_from(ConversationParticipant).where(
+        ConversationParticipant.user_id == uid, ConversationParticipant.is_archived.is_(False)))
+    searches = await count(select(func.count()).select_from(DashboardSearch).where(DashboardSearch.user_id == uid))
+    prefs = current_user.seeker_preferences or {}
+    sections = {
+        "Personal details": all((current_user.display_name, current_user.date_of_birth, current_user.gender, current_user.phone_number, prefs.get("occupation"))),
+        "Profile photo": bool(current_user.avatar_url),
+        "Housing preferences": all(prefs.get(key) is not None and prefs.get(key) != "" for key in ("budget_min", "budget_max", "preferred_location", "move_in_timeline")),
+        "Lifestyle preferences": all(prefs.get(key) for key in ("sleep_schedule", "cleanliness", "noise_level", "guests", "smoking", "pets")),
+        "Personal bio": bool(current_user.bio and current_user.bio.strip()),
+    }
+    today = datetime.now(timezone.utc).date()
+    dob = current_user.date_of_birth.date() if current_user.date_of_birth else None
+    age = today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day)) if dob else None
+    return {"user": UserSelfResponse.model_validate(current_user), "age": age,
+        "completion": sum(bool(value) for value in sections.values()) * 20,
+        "missing": [key for key, value in sections.items() if not value],
+        "activity": {"saved_rooms": saved_rooms, "saved_roommates": saved_roommates,
+                     "conversations": conversations, "recent_searches": searches}}
+
+
+@router.patch("/me/visibility")
+async def profile_visibility(body: VisibilityRequest, current_user: CurrentUser, db: DbDep):
+    user = await UserRepository(db).update(current_user, is_profile_visible=body.is_profile_visible)
+    return {"is_profile_visible": user.is_profile_visible}
+
+
+@router.get("/me/blocked")
+async def blocked_users(current_user: CurrentUser, db: DbDep, response: Response):
+    response.headers["Cache-Control"] = "no-store"
+    users = (await db.execute(select(User.id, User.display_name).join(
+        BlockedUser, BlockedUser.blocked_id == User.id).where(
+        BlockedUser.blocker_id == current_user.id).order_by(BlockedUser.created_at.desc()))).all()
+    return [{"id": user.id, "display_name": user.display_name} for user in users]
 
 
 @router.get(
@@ -128,6 +186,9 @@ async def delete_my_account(
 ) -> MessageResponse:
     user_repo = UserRepository(db)
     await user_repo.soft_delete(current_user)
+    await db.execute(update(UserSession).where(UserSession.user_id == current_user.id).values(is_active=False))
+    await db.execute(update(RefreshToken).where(RefreshToken.user_id == current_user.id).values(
+        is_revoked=True, revoked_at=datetime.now(timezone.utc)))
     return MessageResponse(message="Account scheduled for deletion.")
 
 
@@ -181,7 +242,7 @@ async def get_user_profile(
 ) -> UserPublicResponse:
     user_repo = UserRepository(db)
     user = await user_repo.get_by_id(user_id)
-    if not user or user.is_deleted or not user.is_active:
+    if not user or user.is_deleted or not user.is_active or (not user.is_profile_visible and user.id != _current_user.id):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="User not found.",

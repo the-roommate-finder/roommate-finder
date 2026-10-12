@@ -5,7 +5,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Query, Response
 from pydantic import BaseModel, ConfigDict, Field
-from sqlalchemy import Integer, any_, case, cast, delete, func, or_, select
+from sqlalchemy import BigInteger, Integer, any_, case, cast, delete, func, literal, or_, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import selectinload
 
@@ -45,7 +45,7 @@ def roommate(user: User) -> RoommateResponse:
 
 def visible_roommates(user_id: str):
     return [User.id != user_id, User.role == UserRole.SEEKER, User.is_active.is_(True),
-            User.is_email_verified.is_(True), User.is_deleted.is_(False),
+            User.is_email_verified.is_(True), User.is_deleted.is_(False), User.is_profile_visible.is_(True),
             User.is_profile_complete.is_(True), User.seeker_preferences["occupation"].astext.is_not(None)]
 
 
@@ -54,8 +54,10 @@ def visible_rooms():
             Listing.owner.has(User.is_active.is_(True) & User.is_deleted.is_(False))]
 
 
-async def page_of(db, model, filters, page, page_size, order):
+async def page_of(db, model, filters, page, page_size, order, clamp=False):
     total = (await db.execute(select(func.count()).select_from(model).where(*filters))).scalar_one()
+    if clamp:
+        page = min(page, max(1, (total + page_size - 1) // page_size))
     statement = select(model).where(*filters).order_by(*order).offset((page - 1) * page_size).limit(page_size)
     if model is Listing:
         statement = statement.options(selectinload(Listing.owner), selectinload(Listing.images))
@@ -78,6 +80,7 @@ async def dashboard(db: DbDep, current_user: CurrentUser, response: Response,
                     sleep_schedule: Literal["early_bird", "night_owl", "flexible"] | None = None,
                     cleanliness: Literal["very_tidy", "moderate", "relaxed"] | None = None,
                     move_in_timeline: Literal["within_1_month", "within_3_months", "within_6_months", "flexible"] | None = None,
+                    saved_sort: Literal["recent", "oldest", "price_low", "price_high"] = "recent",
                     page_size: int = Query(default=3, ge=1, le=30), mode: Literal["all", "saved", "matches"] = "all"):
     response.headers["Cache-Control"] = "no-store"
     room_filters, person_filters = visible_rooms(), visible_roommates(current_user.id)
@@ -85,18 +88,17 @@ async def dashboard(db: DbDep, current_user: CurrentUser, response: Response,
         if value:
             room_filters.append(func.lower(room_column).contains(value.lower(), autoescape=True))
             person_filters.append(func.lower(User.seeker_preferences["preferred_location"].astext).contains(value.lower(), autoescape=True))
-    if location.strip():
-        term = location.strip().lower()
+    for term in (part.strip().lower() for part in location.split(",") if part.strip()):
         room_filters.append(or_(*(func.lower(column).contains(term, autoescape=True)
-                                  for column in (Listing.city, Listing.address, Listing.state))))
+                                  for column in (Listing.city, Listing.address, Listing.state, Listing.country))))
         person_filters.append(func.lower(User.seeker_preferences["preferred_location"].astext).contains(term, autoescape=True))
     for minimum, maximum in ((min_rent, max_rent), (min_budget, max_budget)):
         if minimum is not None and maximum is not None and minimum > maximum:
             raise HTTPException(422, "Minimum price must not exceed maximum price.")
     if min_rent is not None:
-        room_filters.append(Listing.monthly_rent >= min_rent)
+        room_filters.append(Listing.monthly_rent >= literal(min_rent, type_=BigInteger()))
     if max_rent is not None:
-        room_filters.append(Listing.monthly_rent <= max_rent)
+        room_filters.append(Listing.monthly_rent <= literal(max_rent, type_=BigInteger()))
     if property_type:
         room_filters.append(Listing.property_type == property_type)
     selected_amenities = list(dict.fromkeys(item.strip().lower() for item in amenities.split(",") if item.strip()))
@@ -130,8 +132,19 @@ async def dashboard(db: DbDep, current_user: CurrentUser, response: Response,
     if mode == "matches":
         person_filters.extend(match_filters)
     order = ([case((condition, 1), else_=0).desc() for condition in matching] + [User.updated_at.desc(), User.id])
-    rooms = await page_of(db, Listing, room_filters, room_page, page_size, [Listing.created_at.desc(), Listing.id])
-    roommates = await page_of(db, User, person_filters, roommate_page, page_size, order)
+    room_order = [Listing.created_at.desc(), Listing.id]
+    if mode == "saved":
+        def saved_order(model, kind, price):
+            saved_at = select(DashboardBookmark.created_at).where(
+                DashboardBookmark.user_id == current_user.id, DashboardBookmark.kind == kind,
+                DashboardBookmark.target_id == model.id).correlate(model).scalar_subquery()
+            primary = {"recent": saved_at.desc(), "oldest": saved_at.asc(),
+                       "price_low": price.asc(), "price_high": price.desc()}[saved_sort]
+            return [primary, model.id]
+        room_order = saved_order(Listing, "room", Listing.monthly_rent)
+        order = saved_order(User, "roommate", cast(User.seeker_preferences["budget_min"].astext, Integer))
+    rooms = await page_of(db, Listing, room_filters, room_page, page_size, room_order, clamp=mode == "saved")
+    roommates = await page_of(db, User, person_filters, roommate_page, page_size, order, clamp=mode == "saved")
     recent_rooms = (await db.execute(select(Listing).join(DashboardBookmark, DashboardBookmark.target_id == Listing.id)
         .where(DashboardBookmark.user_id == current_user.id, DashboardBookmark.kind == "room", *visible_rooms())
         .options(selectinload(Listing.owner), selectinload(Listing.images))

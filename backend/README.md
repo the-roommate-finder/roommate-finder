@@ -113,3 +113,77 @@ NGN300,000 monthly. The frontend converts minor units for display.
 `tests/test_public_listings.py` verifies creation-to-public-feed visibility,
 filtering, pagination, image metadata, privacy and unavailable/deleted records
 using rollback transactions and mocked email delivery. No migration is needed.
+
+
+### Seeker dashboard
+
+Apply migration `0007_dashboard_activity.py` (`alembic upgrade head`, also run by
+Compose's migration service). It adds account-owned bookmarks and recent searches.
+
+- `GET /api/v1/dashboard`: seeker-only, uncached user data, paginated room/roommate
+  feeds, saved IDs, two recent saved rooms, five recent searches and match count.
+  Filters: `city`, `area`, `mode=all|saved|matches`, `room_page`, `roommate_page`,
+  `page_size` (default 3, maximum 30). Roommates must be other active, verified,
+  non-deleted seekers with completed preferences. Their response excludes email,
+  phone, date of birth and credentials. Rooms use the safe public listing schema.
+- `PUT/DELETE /api/v1/dashboard/saved/{room|roommate}/{id}`: idempotent, per-account
+  saves; PUT validates a currently visible target. Unavailable records are excluded
+  from saved feeds and recent saved cards. DELETE can also remove stale bookmarks.
+- `POST /api/v1/dashboard/searches`: `{city, area, kind: "room" | "roommate"}`;
+  deduplicates and retains the five most recent searches per account.
+
+Roommates rank by supplied sleep/cleanliness choices, then profile update time.
+The match count requires both choices to be supplied and equal; it is not an
+invented or time-based "new matches" count. `tests/test_dashboard.py` verifies
+privacy, access controls, filters, saved-record visibility and activity persistence.
+
+Dashboard Browse also accepts `location` (literal, case-insensitive city/address/state
+or preferred-location match), `min_rent`/`max_rent` (kobo), `property_type`,
+`amenities` (comma-separated exact names, all required, case-insensitive), and
+`available_by` (ISO date, inclusive; unspecified availability is immediately available).
+Roommate filters are `min_budget`/`max_budget` (whole naira, overlapping ranges),
+`sleep_schedule`, `cleanliness`, and `move_in_timeline`. Invalid enums, dates,
+negative prices and inverted price ranges return 422. These filters need no new migration.
+
+For `mode=saved`, `saved_sort=recent|oldest|price_low|price_high` controls ordering
+(default `recent`). Date ordering uses this account's bookmark timestamp, not the
+listing/profile timestamp. Price ordering uses monthly rent for rooms and minimum
+monthly budget for roommates, with stable ID tie-breaking. Saved pages are clamped
+to the last available page after removals; an empty feed returns page 1. Counts
+include only currently visible saved records. No additional migration is needed.
+
+
+### Dashboard messaging
+
+Conversation responses include a last-message ciphertext preview and safe participant
+fields (ID, display name, avatar, role, phone verification), excluding email and phone
+numbers. Lists now return actual totals/pages. Message cursors use timestamp + ID,
+scoped to the same conversation; reads update real delivery/read timestamps. Sending
+checks both-direction blocks and participant availability. Concurrent DM creation is
+serialized for the user pair. Public-key publication is idempotent; replacing an
+existing key returns 409 until an explicit recovery/rotation flow is implemented.
+No schema migration is needed for these changes. `tests/test_chat_api.py` covers
+access/privacy, previews, cursor ties, settings, read receipts and key retention.
+
+
+Chat participant profiles are exposed at `GET /api/v1/chat/conversations/{id}/profile`
+only to members of the existing two-person conversation. Responses omit contact
+information, date of birth and credentials. `PUT/DELETE .../profile/block` are
+idempotent. `POST .../profile/report` accepts a reason and 10–2000 characters of
+details, and stores one report per reporter/conversation in `user_reports` with
+pending status. Repeated submissions do not overwrite the original report.
+Migration `0008_user_reports` (`e10a8c345f7d`) adds this table. Reports are persisted
+for moderation; a moderator review UI and notifications are not implemented.
+
+### Dashboard profile settings
+
+Migration `0009_profile_visibility` adds `users.is_profile_visible` (default true).
+`GET /users/me/profile-summary` returns the authenticated user, calculated completion,
+missing sections, age and account-scoped counts of available saved rooms/roommates,
+unarchived conversations and stored recent searches. `PATCH /users/me/visibility`
+accepts only a boolean `is_profile_visible`; hidden profiles are excluded from seeker
+discovery and public user lookups but remain accessible within existing conversations.
+`GET /users/me/blocked` returns only IDs and display names of accounts this user blocked.
+The existing account soft-delete endpoint also deactivates sessions and revokes refresh
+tokens. `tests/test_dashboard_profile.py` covers visibility, private counts, blocking
+and account deletion with isolated test users.
