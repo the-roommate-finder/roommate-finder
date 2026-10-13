@@ -328,3 +328,13 @@ Matching-only visibility uses the existing sleep-schedule and cleanliness match 
 The backend redacts hidden details; cards and chat profiles tolerate missing fields
 and timestamps. A private chat profile retains messaging, report and block controls.
 Checks: `tests/privacy-preferences.spec.ts`, `tests/chat-profile.spec.ts` and proxy tests.
+
+### Blocked users
+
+Profile → Blocked Users opens `/dashboard/profile/blocked-users`. The page follows
+the supplied reference with real names, photos and block dates from
+`/api/member/users/me/blocked`; missing photos use an avatar placeholder.
+Unblock calls `DELETE /api/member/chat/block/{user_id}` and removes the row after
+success. Loading, retry, empty-list and failure states are included, along with
+a mobile layout and the shared sticky dashboard header. No sample users are shown.
+Checks: `tests/blocked-users.spec.ts` and `tests/dashboard-profile.spec.ts`.

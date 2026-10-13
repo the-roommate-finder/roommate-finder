@@ -7,9 +7,8 @@ import { BadgeCheck, Ban, Bell, BriefcaseBusiness, CalendarDays, Camera, CircleH
 
 type Preferences = { occupation?: string; budget_min?: number; budget_max?: number; preferred_location?: string; move_in_timeline?: string; sleep_schedule?: string; cleanliness?: string; noise_level?: string; smoking?: string; guests?: string; pets?: string };
 type Summary = { user: { id: string; display_name: string | null; avatar_url: string | null; email: string; bio: string | null; is_email_verified: boolean; is_profile_visible: boolean; seeker_preferences: Preferences | null }; age: number | null; completion: number; missing: string[]; activity: { saved_rooms: number; saved_roommates: number; conversations: number; recent_searches: number } };
-type Blocked = { id: string; display_name: string | null };
 type Session = { id: string; user_agent: string | null; last_used_at: string; location: string | null };
-type Panel = 'Security' | 'Blocked Users' | 'Help & Support' | 'Account Management' | 'Verification' | 'Delete Account';
+type Panel = 'Security' | 'Help & Support' | 'Account Management' | 'Verification' | 'Delete Account';
 const labels: Record<string, string> = { early_bird: 'Early Bird', night_owl: 'Night Owl', flexible: 'Flexible', very_tidy: 'Very Tidy', moderate: 'Moderate', relaxed: 'Relaxed', quiet: 'Quiet', lively: 'Lively', rarely: 'Rarely', sometimes: 'Sometimes', often: 'Often', no: 'Non Smoker', yes: 'Smoker', outdoors_only: 'Outdoors Only', no_pets: 'No pets', have_pets: 'Have pets', pet_friendly: 'Pet friendly', within_1_month: 'Within 1 month', within_3_months: 'Within 3 months', within_6_months: 'Within 6 months' };
 const display = (value?: string) => value ? labels[value] || value : 'Not specified';
 const editUrl = (section = 'personal-title') => `/create-profile?edit=1#${section}`;
@@ -28,7 +27,6 @@ export function DashboardProfile({ onLogout, loggingOut, onNotifications }: { on
   const [busy, setBusy] = useState(false);
   const lock = useRef(false);
   const [panel, setPanel] = useState<Panel | null>(null);
-  const [blocked, setBlocked] = useState<Blocked[]>([]);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [panelLoading, setPanelLoading] = useState(false);
   const [panelError, setPanelError] = useState('');
@@ -54,18 +52,17 @@ export function DashboardProfile({ onLogout, loggingOut, onNotifications }: { on
   }, [attempt, router]);
   useEffect(() => {
     if (panel) dialog.current?.showModal(); else dialog.current?.close();
-    if (panel !== 'Blocked Users' && panel !== 'Security') return;
+    if (panel !== 'Security') return;
     const controller = new AbortController();
-    const path = panel === 'Blocked Users' ? 'blocked' : 'sessions';
-    request<Blocked[] | Session[]>(`users/me/${path}`, { signal: AbortSignal.any([controller.signal, AbortSignal.timeout(20000)]) }).then(value => {
+    request<Session[]>('users/me/sessions', { signal: AbortSignal.any([controller.signal, AbortSignal.timeout(20000)]) }).then(value => {
       if (controller.signal.aborted) return;
-      if (panel === 'Blocked Users') setBlocked(value as Blocked[]); else setSessions(value as Session[]);
+      setSessions(value);
     }).catch(reason => { if (!controller.signal.aborted) setPanelError(reason.message); })
       .finally(() => { if (!controller.signal.aborted) setPanelLoading(false); });
     return () => controller.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [panel, panelAttempt, router]);
-  function open(next: Panel) { setPanel(next); setError(''); setPanelError(''); setConfirmation(''); setPanelLoading(next === 'Security' || next === 'Blocked Users'); }
+  function open(next: Panel) { setPanel(next); setError(''); setPanelError(''); setConfirmation(''); setPanelLoading(next === 'Security'); }
   async function act(action: () => Promise<void>) {
     if (lock.current) return;
     lock.current = true; setBusy(true); setError('');
@@ -106,7 +103,7 @@ export function DashboardProfile({ onLogout, loggingOut, onNotifications }: { on
         { label: 'Conversations', count: activity.conversations, href: '/dashboard/messages', icon: <MessageSquare /> },
         { label: 'Recent Searches', count: activity.recent_searches, href: '/dashboard#recent-searches', icon: <Search /> },
       ].map(item => <Link href={item.href} key={item.label}>{item.icon}<span>{item.label}</span><strong>{item.count}</strong></Link>)}</div></Card>
-      <Card title="Account & Settings" icon={<Settings />} className="my-profile-settings"><div className="my-profile-settings-grid"><button onClick={onNotifications}><Bell />Notifications</button><button onClick={() => open('Account Management')}><Shield />Account Management</button><button onClick={() => router.push('/dashboard/profile/privacy')}><ShieldCheck />Privacy</button><button onClick={() => open('Blocked Users')}><Ban />Blocked Users</button><button onClick={() => open('Security')}><Shield />Security</button><button onClick={() => open('Help & Support')}><CircleHelp />Help &amp; Support</button></div><div className="my-profile-danger"><button disabled={loggingOut} onClick={onLogout}><LogOut />{loggingOut ? 'Signing out…' : 'Log Out'}</button><button onClick={() => open('Delete Account')}><Trash2 />Delete Account</button></div></Card>
+      <Card title="Account & Settings" icon={<Settings />} className="my-profile-settings"><div className="my-profile-settings-grid"><button onClick={onNotifications}><Bell />Notifications</button><button onClick={() => open('Account Management')}><Shield />Account Management</button><button onClick={() => router.push('/dashboard/profile/privacy')}><ShieldCheck />Privacy</button><button onClick={() => router.push('/dashboard/profile/blocked-users')}><Ban />Blocked Users</button><button onClick={() => open('Security')}><Shield />Security</button><button onClick={() => open('Help & Support')}><CircleHelp />Help &amp; Support</button></div><div className="my-profile-danger"><button disabled={loggingOut} onClick={onLogout}><LogOut />{loggingOut ? 'Signing out…' : 'Log Out'}</button><button onClick={() => open('Delete Account')}><Trash2 />Delete Account</button></div></Card>
     </div><aside className="my-profile-aside">
       <section className="my-profile-card"><h2>{completion === 100 ? 'Your profile is complete' : 'Complete your profile'}</h2><p>Add a few more details to get better room and roommate recommendations.</p><div className="my-profile-completion"><Progress value={completion} /><span>{completion}% complete</span></div><p className="my-profile-missing"><CircleHelp size={17} /><span>{missing.length ? <><strong>Missing:</strong> {missing.join(', ')}</> : 'All profile details added.'}</span></p><Link className="my-profile-primary" href={editUrl()}>{completion === 100 ? 'Edit Profile' : 'Complete Profile'}</Link></section>
       <section className="my-profile-card" id="profile-visibility"><h2>Profile Visibility</h2><div className="my-profile-visibility"><p>{user.is_profile_visible ? 'Your profile is visible to others looking for a room.' : 'Your profile is hidden from Browse and recommendations.'}</p>{visibility}</div></section>
@@ -116,7 +113,6 @@ export function DashboardProfile({ onLogout, loggingOut, onNotifications }: { on
       {panel === 'Verification' && <><p>{user.is_email_verified ? 'Your email address is verified.' : 'Verify your email address to secure your account.'}</p>{!user.is_email_verified && <Link href={`/verify-email?email=${encodeURIComponent(user.email)}`}>Verify email</Link>}<p>Identity verification is not available yet. We’ll show your verified status here when it becomes available.</p></>}
       {panel === 'Account Management' && <><p>Manage your personal details or delete your account.</p><Link className="my-profile-primary" href={editUrl()}>Edit your details</Link><button className="my-profile-delete" onClick={() => open('Delete Account')}>Delete Account</button></>}
       {panel === 'Security' && <><p>Use a password reset email to choose a new password.</p><Link className="my-profile-primary" href="/forgot-password">Reset password</Link><h3>Active sessions</h3>{!panelLoading && !panelError && (sessions.length ? <ul className="my-profile-list">{sessions.map(session => <li key={session.id}><strong>{session.user_agent || 'Unknown device'}</strong><span>{session.location || 'Location unavailable'} · Last used {new Date(session.last_used_at).toLocaleString()}</span></li>)}</ul> : <p>No active sessions found.</p>)}</>}
-      {panel === 'Blocked Users' && !panelLoading && !panelError && (blocked.length ? <ul className="my-profile-list">{blocked.map(person => <li key={person.id}><span>{person.display_name || 'Roommate Finder member'}</span><button disabled={busy} onClick={() => void act(async () => { await request(`chat/block/${person.id}`, { method: 'DELETE' }); setBlocked(current => current.filter(item => item.id !== person.id)); })}>Unblock</button></li>)}</ul> : <p>You haven’t blocked anyone.</p>)}
       {panel === 'Help & Support' && <div className="my-profile-faq"><details open><summary>How do I update my profile?</summary><p>Choose Edit Profile to change your details, photo, budget or lifestyle preferences, then save your changes.</p></details><details><summary>Who can see my profile?</summary><p>Verified members can find your completed profile in Browse when Profile Visibility is on. Turning it off hides your profile details while existing conversations remain available.</p></details><details><summary>How do I report someone?</summary><p>Open their profile from your conversation and choose Report user. You can also block them to stop messages.</p></details><details><summary>My profile photo won’t upload</summary><p>Choose a PNG or JPG up to 5 MB. If uploads are temporarily unavailable, you can save your profile without a photo and try again later.</p></details></div>}
       {panel === 'Delete Account' && <form onSubmit={event => { event.preventDefault(); if (confirmation !== 'DELETE') return; void act(async () => { await request('users/me', { method: 'DELETE' }); router.replace('/login'); router.refresh(); }); }}><p>This deactivates your account, hides your profile and listings, and signs you out. Your records are retained by the service; this does not permanently erase them.</p><label className="my-profile-confirm">Type DELETE to confirm<input value={confirmation} onChange={event => setConfirmation(event.target.value)} autoComplete="off" disabled={busy} /></label><button className="my-profile-delete" disabled={busy || confirmation !== 'DELETE'}>{busy ? 'Deleting…' : 'Confirm account deletion'}</button></form>}
       {panelLoading && <p role="status">Loading…</p>}{panelError && <p role="alert">{panelError} <button onClick={() => { setPanelLoading(true); setPanelError(''); setPanelAttempt(value => value + 1); }}>Try again</button></p>}{error && panel && <p className="dashboard-error" role="alert">{error}</p>}
