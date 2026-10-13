@@ -18,6 +18,10 @@ const endpoints: Endpoint[] = [
     GET: {}, DELETE: {}, PATCH: { fields: ['display_name', 'bio', 'phone_number', 'gender'] },
   } },
   { path: /^users\/me\/(profile-summary|blocked|sessions)$/, methods: { GET: {} } },
+  { path: /^users\/me\/email-change$/, methods: { POST: { fields: ['email'] } } },
+  { path: /^users\/me\/email-change\/confirm$/, methods: { POST: { fields: ['current_code', 'new_code'] } } },
+  { path: /^users\/me\/security$/, methods: { GET: {}, PATCH: { fields: ['login_alerts'] } } },
+  { path: /^auth\/change-password$/, methods: { POST: { fields: ['current_password', 'new_password'] } } },
   { path: /^users\/me\/visibility$/, methods: { PATCH: { fields: ['is_profile_visible'] } } },
   { path: /^users\/me\/privacy$/, methods: { GET: {}, PUT: { fields: ['profile_audience', 'show_age', 'show_occupation', 'show_lifestyle', 'show_about_me', 'show_recently_active', 'show_profile_activity'] } } },
   { path: /^chat\/block\/RMF-[0-9]{6}$/, methods: { DELETE: {} } },
@@ -149,7 +153,7 @@ async function handle(request: NextRequest, context: { params: Promise<{ path: s
     if (upstream.status === 204) return new NextResponse(null, { status: 204, headers: { 'Cache-Control': 'no-store' } });
     const data: unknown = await upstream.json();
     const response = json(upstream.ok ? data : { message: upstreamMessage(data) }, upstream.status);
-    if (upstream.ok && path === 'users/me' && request.method === 'DELETE') {
+    if (upstream.ok && ((path === 'users/me' && request.method === 'DELETE') || path === 'auth/change-password')) {
       for (const name of ['rmf_access', 'rmf_refresh', 'rmf_verification_email']) response.cookies.delete(name);
     }
     if (upstream.status === 429 && upstream.headers.has('retry-after')) {

@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { ArrowRight, Bell, ChevronDown, Heart, Home, LogOut, MapPin, Menu, MessageSquare, Search, SlidersHorizontal, Star, UserRound, X } from 'lucide-react';
 import { DashboardBrowseFilters, EMPTY_BROWSE, browseQuery, type BrowseFilters } from './dashboard-browse-filters';
+import { SecuritySettings } from './security-settings';
+import { AccountManagement } from './account-management';
 import { BlockedUsers } from './blocked-users';
 import { PrivacyPreferences } from './privacy-preferences';
 import { NotificationPreferences } from './notification-preferences';
@@ -40,7 +42,7 @@ function budget(person: Person) {
 function safeImage(url: string | null) { return url && (/^https?:\/\//i.test(url) || /^\/(?!\/)/.test(url)) ? url : undefined; }
 function personName(person: Person) { return `${person.display_name || 'Roommate'}${person.age !== null ? `, ${person.age} years` : ''}`; }
 
-export function SeekerDashboard({ initialView = 'home', initialParticipant, initialConversation, initialDraft, profileConversation, initialSavedKind = 'room', profileSettings }: { profileSettings?: 'notifications' | 'privacy' | 'blocked-users'; initialView?: 'home' | 'browse' | 'saved' | 'messages' | 'profile'; initialSavedKind?: Kind; initialParticipant?: string; initialConversation?: string; initialDraft?: string; profileConversation?: string }) {
+export function SeekerDashboard({ initialView = 'home', initialParticipant, initialConversation, initialDraft, profileConversation, initialSavedKind = 'room', profileSettings }: { profileSettings?: 'notifications' | 'privacy' | 'blocked-users' | 'account-management' | 'security'; initialView?: 'home' | 'browse' | 'saved' | 'messages' | 'profile'; initialSavedKind?: Kind; initialParticipant?: string; initialConversation?: string; initialDraft?: string; profileConversation?: string }) {
   const router = useRouter();
   const [view, setView] = useState<'home' | 'browse' | 'saved' | 'matches' | 'messages' | 'profile'>(initialView);
   const [savedKind, setSavedKind] = useState<Kind>(initialSavedKind);
@@ -220,7 +222,7 @@ export function SeekerDashboard({ initialView = 'home', initialParticipant, init
       </header>
       <main className={`dashboard-main ${view === 'profile' ? (profileSettings ? 'dashboard-notification-preferences' : 'dashboard-own-profile') : view === 'browse' ? 'dashboard-browse' : view === 'saved' ? 'dashboard-saved' : view === 'messages' ? (profileConversation ? 'dashboard-profile-main' : 'dashboard-messages-main') : ''}`} >
         {actionError && <p className="dashboard-error" role="alert">{actionError}</p>}
-        {view === 'profile' ? (profileSettings === 'notifications' ? <NotificationPreferences /> : profileSettings === 'privacy' ? <PrivacyPreferences /> : profileSettings === 'blocked-users' ? <BlockedUsers /> : <DashboardProfile onLogout={logout} loggingOut={loggingOut} onNotifications={() => router.push('/dashboard/profile/notifications')} />) : view === 'messages' ? <>{error ? <div className="dashboard-empty" role="alert">{error}<button onClick={() => setRefresh(value => value + 1)}>Try again</button></div> : data ? (profileConversation ? <ChatProfile key={profileConversation} conversationId={profileConversation} /> : <DashboardMessages userId={data.user.id} initialParticipant={initialParticipant} initialConversation={initialConversation} initialDraft={initialDraft} />) : <p role="status">Loading messages…</p>}</> : <>
+        {view === 'profile' ? (profileSettings === 'notifications' ? <NotificationPreferences /> : profileSettings === 'privacy' ? <PrivacyPreferences /> : profileSettings === 'blocked-users' ? <BlockedUsers /> : profileSettings === 'account-management' ? <AccountManagement /> : profileSettings === 'security' ? <SecuritySettings /> : <DashboardProfile onLogout={logout} loggingOut={loggingOut} onNotifications={() => router.push('/dashboard/profile/notifications')} />) : view === 'messages' ? <>{error ? <div className="dashboard-empty" role="alert">{error}<button onClick={() => setRefresh(value => value + 1)}>Try again</button></div> : data ? (profileConversation ? <ChatProfile key={profileConversation} conversationId={profileConversation} /> : <DashboardMessages userId={data.user.id} initialParticipant={initialParticipant} initialConversation={initialConversation} initialDraft={initialDraft} />) : <p role="status">Loading messages…</p>}</> : <>
         {view === 'saved' ? <>
           <div className="dashboard-saved-heading"><h1>Saved</h1><p>Keep track of rooms and roommates you’re interested in.</p>
             <div className="dashboard-saved-tabs" role="group" aria-label="Saved category">

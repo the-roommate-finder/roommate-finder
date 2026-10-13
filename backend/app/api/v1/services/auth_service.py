@@ -9,11 +9,14 @@ from fastapi import HTTPException, Request, status
 from jose import JWTError
 from redis.asyncio import Redis
 from user_agents import parse as parse_ua
+from sqlalchemy import select
 
 from app.api.v1.models.models import (
     SecurityEventType,
     User,
     UserRole,
+    Device,
+    NotificationType,
 )
 from app.api.v1.repositories.auth_repository import (
     EmailVerificationRepository,
@@ -34,6 +37,7 @@ from app.api.v1.schemas.schemas import (
     UserPublicResponse,
 )
 from app.core.config import settings
+from app.api.v1.services.notification_service import NotificationRepository, NotificationService
 from app.core.security import (
     _sha256_hex,
     create_access_token,
@@ -406,6 +410,7 @@ class AuthService:
         identifier = user.email
 
         #  Record device 
+        await self._notify_unfamiliar_login(user, device_fp, location, successful=True)
         device = await self._devices.upsert_device(
             user_id=user.id,
             fingerprint=device_fp,
@@ -639,6 +644,8 @@ class AuthService:
         fail_key = f"{_FAIL_COUNT_PREFIX}{email}"
         fail_count = await self._redis.incr(fail_key)
         await self._redis.expire(fail_key, settings.lockout_expire_seconds)
+        if user and fail_count == 1:
+            await self._notify_unfamiliar_login(user, device_fp, location, successful=False)
 
         if fail_count >= settings.LOGIN_MAX_ATTEMPTS:
             # Lock account
@@ -663,6 +670,21 @@ class AuthService:
                     lockout_minutes=settings.ACCOUNT_LOCKOUT_MINUTES,
                 )
             logger.warning("account_locked", email=email, ip=ip)
+
+        # The caller returns HTTP 401; preserve the attempt, audit and alert first.
+        await self._users.db.commit()
+
+    async def _notify_unfamiliar_login(self, user, fingerprint, location, *, successful):
+        known = (await self._users.db.execute(select(Device.fingerprint).where(Device.user_id == user.id))).scalars().all()
+        if not known or fingerprint in known:
+            return
+        await NotificationService(NotificationRepository(self._users.db)).create_notification(
+            user_id=user.id, notification_type=NotificationType.SECURITY_ALERT,
+            title="New device signed in" if successful else "Unfamiliar login attempt",
+            body=("Your account was signed into from an unfamiliar device." if successful
+                  else "An unsuccessful login attempt was made from an unfamiliar device.")
+                 + (f" Location: {location}." if location else ""),
+        )
 
     async def _resolve_location(self, ip: str) -> Optional[str]:
         """Attempt to resolve a human-readable location from IP. Never raises."""

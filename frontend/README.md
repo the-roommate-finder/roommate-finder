@@ -338,3 +338,27 @@ Unblock calls `DELETE /api/member/chat/block/{user_id}` and removes the row afte
 success. Loading, retry, empty-list and failure states are included, along with
 a mobile layout and the shared sticky dashboard header. No sample users are shown.
 Checks: `tests/blocked-users.spec.ts` and `tests/dashboard-profile.spec.ts`.
+
+### Account management
+
+Profile → Account Management opens `/dashboard/profile/account-management` and shows
+the signed-in email and saved preferred location. English and Nigerian Naira are the
+current app defaults; these are read-only. Change email opens a form that sends separate
+codes to the current and proposed addresses, then confirms both before updating the
+displayed email. Failed confirmations leave the original email in place. The page
+includes mobile layout, loading/retry and keyboard-accessible dialog controls.
+Checks: `tests/account-management.spec.ts` and `tests/member-route.test.cjs`.
+
+### Security settings
+
+Profile → Security opens `/dashboard/profile/security`. Passwords are represented by
+fixed mask characters; the backend never returns a password or hash. The last change
+date is shown only when an audit event exists. Change password checks the current
+password and the shared strength rules, with independent visibility buttons and a
+confirmation input. On success the member proxy clears auth cookies and the dialog
+links back to login. Forgot password remains available for email reset and Google users.
+
+The page shows the five most recent recorded sign-ins and saves the security-alert
+switch immediately, preserving other notification preferences. Failed saves retain
+the previous switch state. Two-factor setup is explicitly unavailable until a future
+2FA implementation. Checks: `tests/security-settings.spec.ts` and member proxy tests.

@@ -229,3 +229,40 @@ Authenticated listing owners now expose basic identity only, closing the old pat
 that exposed contact details/bio/activity through a listing. Recent-activity visibility
 controls the public profile timestamp; this does not add a new online-status indicator.
 Tests: `tests/test_privacy_preferences.py`, plus dashboard/chat/profile regressions.
+
+### Account email changes
+
+Authenticated `POST /users/me/email-change` accepts `{ "email": "new@example.com" }`.
+It sends separate six-digit codes to the current and new addresses using the email
+worker. `POST /users/me/email-change/confirm` accepts `current_code` and `new_code`.
+Both must match before the email changes; the new address stays verified. Redis stores
+only code hashes for 10 minutes, limits each challenge to five guesses and limits
+requests to three per account per 10 minutes. New requests replace previous codes.
+Row locks serialize changes to an account, and the database unique constraint prevents
+duplicate addresses. No migration is required. Restart the Celery worker after updating
+so it registers `send_email_change_code`; configured email delivery is required.
+
+Existing sessions stay signed in. Google sign-in matches the account email, so it must
+use the new address afterward; password reset can establish a password at the new
+address. `tests/test_email_change.py` checks both-mailbox verification, replay, expiry,
+rate limits, conflicts and delivery failures with mocked email tasks.
+
+### Security settings
+
+`GET /users/me/security` returns the latest recorded password-change timestamp,
+the five most recent successful sign-in events (parsed OS/browser, recorded location
+and time), the login-alert preference, and `two_factor_available: false`. No password,
+hash, token or IP address is returned. `PATCH /users/me/security` accepts only a strict
+boolean `login_alerts` and updates that preference without replacing the others.
+The existing `POST /auth/change-password` validates the current and new passwords,
+revokes refresh tokens and records the change; existing access tokens retain their
+normal expiry. No database migration is needed.
+
+Password sign-ins from an unfamiliar device fingerprint produce an in-app security
+alert when the account has a previously recorded device and login alerts are enabled.
+The first unsuccessful attempt in the lockout counter window also produces an alert;
+failed attempts and their audit events now persist despite the HTTP 401 response.
+The fingerprint includes IP and user agent, so a network change can trigger an alert.
+This preference does not suppress account-lockout emails. Google sign-ins appear in
+login activity; these new device alerts apply to the password sign-in flow.
+Checks: `tests/test_security_settings.py`, authentication and notification tests.

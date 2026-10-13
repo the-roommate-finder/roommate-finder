@@ -1,0 +1,39 @@
+.security-content { margin: 18px 0 0 44px; width: min(514px, calc(100% - 44px)); }
+.security-section { margin-bottom: 32px; }
+.security-section h2 { margin: 0 0 14px; font-size: 14px; font-weight: 650; line-height: 22px; }
+.security-setting-row { display: grid; grid-template-columns: minmax(0, 323px) auto; align-items: center; gap: 24px; min-height: 36px; font-size: 16px; line-height: 24px; }
+.security-setting-row p { margin: 0; }
+.seeker-dashboard .security-primary { background: var(--dashboard-blue); color: white; border: 0; border-radius: 24px; padding: 8px 20px; min-height: 36px; font-size: 14px; line-height: 20px; white-space: nowrap; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; }
+.security-setting-row > .security-primary { width: 166px; }
+.security-2fa { position: relative; width: max-content; }
+.security-2fa .security-primary { width: 148px; }
+.seeker-dashboard .security-2fa .security-primary:disabled { opacity: 1; cursor: not-allowed; }
+.security-2fa small { display: block; position: absolute; top: 100%; left: 0; width: 100%; text-align: center; color: #666; font-size: 11px; }
+.security-login-list { list-style: none; margin: 0; padding: 0; }
+.security-login-list li + li { border-top: 1px solid #e1e2e7; margin-top: 14px; padding-top: 14px; }
+.security-login-list p { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; min-height: 44px; margin: 0; font-size: 16px; line-height: 24px; overflow-wrap: anywhere; }
+.security-dot { width: 10px; height: 10px; background: var(--dashboard-blue); border-radius: 50%; flex-shrink: 0; }
+.security-empty { font-size: 16px; }
+.security-setting-row.notification-preferences-row { grid-template-columns: minmax(0, 323px) auto; justify-content: start; }
+.security-dialog { font-family: inherit; color: #222; background: white; border: 0; border-radius: 20px; padding: 28px; width: min(480px, calc(100% - 32px)); max-height: calc(100dvh - 32px); }
+.security-dialog::backdrop { background: rgb(0 0 0 / 35%); }
+.security-dialog h2 { font-size: 20px; margin: 0 28px 24px 0; }
+.security-dialog p { line-height: 1.6; }
+.security-close { position: absolute; top: 12px; right: 12px; border: 0; background: transparent; width: 44px; height: 44px; display: grid; place-items: center; }
+.security-password-field { margin-block: 18px; }
+.security-password-field label { display: block; font-size: 14px; margin-bottom: 6px; }
+.security-password-field > div { position: relative; }
+.security-password-field input { width: 100%; min-width: 0; min-height: 44px; padding: 10px 48px 10px 12px; border: 1px solid #ccc; border-radius: 8px; color: #222; background: white; font: inherit; }
+.security-password-field button { position: absolute; inset: 0 0 0 auto; width: 44px; border: 0; background: transparent; display: grid; place-items: center; color: #555; }
+.security-dialog .security-primary { min-height: 44px; }
+.security-forgot { display: block; margin-top: 18px; color: var(--dashboard-blue); font-size: 14px; }
+@media (max-width: 760px) {
+  .security-content { margin-left: 36px; width: calc(100% - 36px); }
+  .security-setting-row { display: flex; flex-wrap: wrap; gap: 14px; }
+  .security-setting-row > p { flex-basis: 100%; }
+  .security-setting-row > .security-primary, .security-2fa .security-primary { min-height: 44px; }
+  .security-setting-row.notification-preferences-row { display: flex; flex-wrap: nowrap; }
+  .security-setting-row.notification-preferences-row > span { min-width: 0; flex: 1; }
+  .security-section { margin-bottom: 36px; }
+}
+@media (max-width: 380px) { .security-content { margin-left: 0; width: 100%; } }

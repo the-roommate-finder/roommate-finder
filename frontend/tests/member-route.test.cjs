@@ -266,3 +266,41 @@ test('privacy endpoint only changes the current account and rejects cross-site w
   assert.equal((await handlers(noUpstream).PUT(request(path, 'PUT', { ...payload, user_id: 'RMF-000002' }), context(path))).status, 400);
   assert.equal((await handlers(noUpstream).PUT(request(path, 'PUT', payload, { origin: 'https://evil.example' }), context(path))).status, 403);
 });
+
+test('email changes forward only the allowed verification fields', async () => {
+  for (const [path, payload] of [
+    ['users/me/email-change', { email: 'new@example.com' }],
+    ['users/me/email-change/confirm', { current_code: '123456', new_code: '654321' }],
+  ]) {
+    const { POST } = handlers(async (url, options) => {
+      assert.equal(url.endsWith(path), true);
+      assert.deepEqual(JSON.parse(options.body), payload);
+      return Response.json({ message: 'Success' });
+    });
+    assert.equal((await POST(request(path, 'POST', payload), context(path))).status, 200);
+    assert.equal((await handlers(noUpstream).POST(request(path, 'POST', { ...payload, user_id: 'RMF-000002' }), context(path))).status, 400);
+    assert.equal((await handlers(noUpstream).POST(request(path, 'POST', payload, { origin: 'https://other.example' }), context(path))).status, 403);
+  }
+});
+
+test('security changes are scoped and successful password changes clear cookies', async () => {
+  const path = 'users/me/security';
+  const { PATCH } = handlers(async (url, options) => {
+    assert.equal(url.endsWith(path), true);
+    assert.deepEqual(JSON.parse(options.body), { login_alerts: false });
+    return Response.json({ login_alerts: false });
+  });
+  assert.equal((await PATCH(request(path, 'PATCH', { login_alerts: false }), context(path))).status, 200);
+  assert.equal((await handlers(noUpstream).PATCH(request(path, 'PATCH', { login_alerts: false, user_id: 'RMF-000002' }), context(path))).status, 400);
+  const change = 'auth/change-password';
+  const payload = { current_password: 'OldPass123!', new_password: 'NewPass123!' };
+  const success = await handlers(async (url, options) => {
+    assert.equal(options.headers.Authorization, 'Bearer private-access');
+    assert.deepEqual(JSON.parse(options.body), payload);
+    return Response.json({ message: 'Changed' });
+  }).POST(request(change, 'POST', payload), context(change));
+  assert.match(success.headers.get('set-cookie'), /rmf_access=;/);
+  assert.match(success.headers.get('set-cookie'), /rmf_refresh=;/);
+  const failure = await handlers(async () => Response.json({ detail: 'Incorrect password' }, { status: 400 })).POST(request(change, 'POST', payload), context(change));
+  assert.equal(failure.headers.get('set-cookie'), null);
+});

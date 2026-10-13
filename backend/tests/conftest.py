@@ -50,7 +50,7 @@ async def api(monkeypatch):
         settings.REDIS_URL, decode_responses=True,
     )
     deliveries = {}
-    for name in ("send_otp_email", "send_otp_sms", "send_password_reset_email", "send_security_alert_email"):
+    for name in ("send_email_change_code", "send_otp_email", "send_otp_sms", "send_password_reset_email", "send_security_alert_email"):
         deliveries[name] = Mock()
         monkeypatch.setattr(getattr(tasks, name), "delay", deliveries[name])
     app = create_app()

@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, UploadFile, Response, status
-from pydantic import BaseModel, ConfigDict, StrictBool
+from pydantic import BaseModel, ConfigDict, StrictBool, EmailStr, Field, field_validator
 from sqlalchemy import select, func, update
 from sqlalchemy.exc import IntegrityError
 from botocore.exceptions import BotoCoreError, ClientError
@@ -10,6 +10,7 @@ from app.api.v1.dependencies import (
     AuthServiceDep,
     CurrentUser,
     DbDep,
+    RedisDep,
     require_admin,
 )
 from app.api.v1.models.models import (UserRole, User, DashboardBookmark, DashboardSearch,
@@ -34,6 +35,10 @@ from app.core.config import settings
 from app.utils.storage import StorageClient
 from app.utils.profile_privacy import privacy, can_view_profile, member_profile
 from app.api.v1.repositories.chat_repository import BlockedUserRepository
+from app.api.v1.services.email_change_service import EmailChangeService
+from app.api.v1.models.models import SecurityEvent, SecurityEventType
+from app.api.v1.schemas.schemas import NotificationPreferences
+from user_agents import parse as parse_user_agent
 
 router = APIRouter(prefix="/users", tags=["Users"])
 
@@ -41,6 +46,70 @@ router = APIRouter(prefix="/users", tags=["Users"])
 class VisibilityRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     is_profile_visible: StrictBool
+
+
+class SecurityAlertsRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    login_alerts: StrictBool
+
+
+@router.get("/me/security")
+async def security_summary(current_user: CurrentUser, db: DbDep, response: Response):
+    response.headers["Cache-Control"] = "no-store"
+    changed_at = (await db.execute(select(func.max(SecurityEvent.created_at)).where(
+        SecurityEvent.user_id == current_user.id,
+        SecurityEvent.event_type == SecurityEventType.PASSWORD_CHANGED))).scalar_one()
+    events = (await db.execute(select(SecurityEvent).where(
+        SecurityEvent.user_id == current_user.id,
+        SecurityEvent.event_type == SecurityEventType.LOGIN_SUCCESS,
+    ).order_by(SecurityEvent.created_at.desc(), SecurityEvent.id).limit(5))).scalars().all()
+    activity = []
+    for event in events:
+        agent = parse_user_agent(event.user_agent or "")
+        activity.append({"id": event.id, "os": agent.os.family, "browser": agent.browser.family,
+            "location": event.location, "created_at": event.created_at})
+    return {"password_changed_at": changed_at, "login_activity": activity,
+        "login_alerts": NotificationPreferences.model_validate(current_user.notification_preferences or {}).login_alerts,
+        "two_factor_available": False}
+
+
+@router.patch("/me/security")
+async def save_security_alerts(body: SecurityAlertsRequest, current_user: CurrentUser, db: DbDep, response: Response):
+    response.headers["Cache-Control"] = "no-store"
+    user = (await db.execute(select(User).where(User.id == current_user.id).with_for_update()
+        .execution_options(populate_existing=True))).scalar_one()
+    preferences = NotificationPreferences.model_validate(user.notification_preferences or {}).model_dump()
+    preferences["login_alerts"] = body.login_alerts
+    await UserRepository(db).update(user, notification_preferences=preferences)
+    return {"login_alerts": body.login_alerts}
+
+
+class EmailChangeRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    email: EmailStr = Field(max_length=255)
+
+    @field_validator("email", mode="before")
+    @classmethod
+    def normalize_email(cls, value):
+        return value.strip().lower() if isinstance(value, str) else value
+
+
+class EmailChangeConfirm(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    current_code: str = Field(min_length=6, max_length=6, pattern=r"^[0-9]{6}$")
+    new_code: str = Field(min_length=6, max_length=6, pattern=r"^[0-9]{6}$")
+
+
+@router.post("/me/email-change")
+async def request_email_change(body: EmailChangeRequest, current_user: CurrentUser, db: DbDep, redis: RedisDep, response: Response):
+    response.headers["Cache-Control"] = "no-store"
+    return await EmailChangeService(db, redis).request(current_user.id, str(body.email))
+
+
+@router.post("/me/email-change/confirm")
+async def confirm_email_change(body: EmailChangeConfirm, current_user: CurrentUser, db: DbDep, redis: RedisDep, response: Response):
+    response.headers["Cache-Control"] = "no-store"
+    return await EmailChangeService(db, redis).confirm(current_user.id, body.current_code, body.new_code)
 
 
 @router.get("/me/privacy", response_model=PrivacyPreferences)

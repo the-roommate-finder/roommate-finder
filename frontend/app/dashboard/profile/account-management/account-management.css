@@ -1,0 +1,27 @@
+.account-management-content { margin: 28px 0 0 44px; width: min(330px, calc(100% - 44px)); }
+.account-management-details { margin: 0; display: grid; gap: 38px; font-size: 14px; line-height: 22px; }
+.account-management-details dt { font-weight: 650; margin-bottom: 5px; }
+.account-management-details dd { margin: 0; overflow-wrap: anywhere; }
+.account-management-email { display: flex; align-items: center; gap: 24px; justify-content: space-between; }
+.account-management-email > div { min-width: 0; }
+.seeker-dashboard .account-management-primary { background: var(--dashboard-blue); color: white; border: 0; border-radius: 24px; padding: 8px 20px; min-height: 36px; font-size: 14px; line-height: 20px; }
+.account-management-email .account-management-primary { width: 134px; flex-shrink: 0; padding-inline: 10px; }
+.account-management-currency { margin-left: 12px; font-size: 18px; font-weight: 650; color: #000; }
+.account-management-dialog { width: min(480px, calc(100% - 32px)); max-height: calc(100dvh - 32px); border: 0; border-radius: 20px; padding: 28px; color: #222; background: white; font-family: inherit; }
+.account-management-dialog::backdrop { background: rgb(0 0 0 / 35%); }
+.account-management-dialog h2 { font-size: 20px; margin: 0 28px 20px 0; }
+.account-management-dialog p { font-size: 14px; line-height: 1.6; }
+.account-management-dialog label { display: grid; gap: 6px; margin-block: 20px; font-size: 14px; font-weight: 600; }
+.account-management-dialog label span { font-weight: 400; color: #555; overflow-wrap: anywhere; }
+.account-management-dialog input { width: 100%; min-width: 0; min-height: 44px; border: 1px solid #ccc; border-radius: 8px; padding: 10px 12px; background: white; color: #222; font: inherit; }
+.account-management-dialog .account-management-note { color: #555; font-size: 12px; }
+.account-management-close { position: absolute; top: 12px; right: 12px; display: grid; place-items: center; height: 44px; width: 44px; border: 0; background: transparent; }
+.account-management-form-actions { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+.account-management-dialog .account-management-primary { min-height: 44px; }
+.account-management-restart { background: transparent; border: 0; color: var(--dashboard-blue); text-decoration: underline; padding: 10px 0; font-size: 14px; }
+@media (max-width: 760px) {
+  .account-management-content { margin-left: 36px; width: calc(100% - 36px); }
+  .account-management-email { flex-wrap: wrap; gap: 12px; }
+  .account-management-email .account-management-primary { min-height: 44px; }
+}
+@media (max-width: 380px) { .account-management-content { margin-left: 0; width: 100%; } }

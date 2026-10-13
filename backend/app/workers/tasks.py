@@ -51,6 +51,7 @@ celery_app.conf.update(
     worker_prefetch_multiplier=1,
     task_routes={
         "app.workers.tasks.send_otp_email": {"queue": "email"},
+        "app.workers.tasks.send_email_change_code": {"queue": "email"},
         "app.workers.tasks.send_security_alert_email": {"queue": "email"},
         "app.workers.tasks.send_password_reset_email": {"queue": "email"},
         "app.workers.tasks.send_otp_sms": {"queue": "sms"},
@@ -123,7 +124,22 @@ def _send_sms(*, to: str, message: str) -> None:
         raise
 
 
-#  Email Tasks 
+#  Email Tasks
+@celery_app.task(name="app.workers.tasks.send_email_change_code", bind=True,
+    max_retries=3, default_retry_delay=10, autoretry_for=(Exception,))
+def send_email_change_code(self, *, user_email: str, otp: str, mailbox: str) -> None:
+    from html import escape
+    label = "current" if mailbox == "current" else "new"
+    _send_email(to=user_email, subject="Confirm your Roommate Finder email change", html=f"""
+      <div style="font-family:sans-serif;max-width:480px;margin:auto">
+        <h2>Confirm your email change</h2>
+        <p>Enter this code in the <strong>{label} email</strong> field on Roommate Finder.</p>
+        <p style="font-size:32px;letter-spacing:8px">{escape(otp)}</p>
+        <p>This code expires in 10 minutes. Your email will only change after both codes are confirmed.</p>
+        <p>If you did not request this change, do not share this code.</p>
+      </div>""")
+
+
 @celery_app.task(
     name="app.workers.tasks.send_otp_email",
     bind=True,
