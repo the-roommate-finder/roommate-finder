@@ -183,7 +183,13 @@ missing sections, age and account-scoped counts of available saved rooms/roommat
 unarchived conversations and stored recent searches. `PATCH /users/me/visibility`
 accepts only a boolean `is_profile_visible`; hidden profiles are excluded from seeker
 discovery and public user lookups but remain accessible within existing conversations.
-`GET /users/me/blocked` returns only IDs and display names of accounts this user blocked.
+`GET /users/me/blocked` returns IDs, display names, avatar URLs and block timestamps
+for accounts this user blocked, newest first. `DELETE /chat/block/{user_id}` removes
+only the caller's block and is safe to repeat. Either direction of blocking prevents
+profile viewing, discovery, saving a roommate and messaging; existing conversation
+history and basic identity remain available. Unblocking restores access subject to
+the other person's privacy settings and any block they still have in place.
+`tests/test_blocked_users.py` covers metadata, access restrictions and scoped unblocking.
 The existing account soft-delete endpoint also deactivates sessions and revokes refresh
 tokens. `tests/test_dashboard_profile.py` covers visibility, private counts, blocking
 and account deletion with isolated test users.

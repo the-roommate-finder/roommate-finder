@@ -354,12 +354,8 @@ class ChatService:
         await self._blocked.block(blocker.id, blocked_id, reason)
 
     async def unblock_user(self, blocker: User, blocked_id: str) -> None:
-        removed = await self._blocked.unblock(blocker.id, blocked_id)
-        if not removed:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Block record not found.",
-            )
+        # Repeated unblocks (for example another open tab) are harmless.
+        await self._blocked.unblock(blocker.id, blocked_id)
 
     #  Internal 
     async def _get_conversation_or_raise(self, conversation_id: str, user_id: str):

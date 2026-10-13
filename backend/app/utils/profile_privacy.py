@@ -1,7 +1,7 @@
 """One privacy policy for profile serialization and discovery queries."""
 from datetime import datetime, timezone
-from sqlalchemy import and_, func, or_
-from app.api.v1.models.models import User
+from sqlalchemy import and_, func, or_, select
+from app.api.v1.models.models import User, BlockedUser
 from app.api.v1.schemas.schemas import PrivacyPreferences, PublicSeekerPreferences, MemberProfileResponse
 
 LIFESTYLE_FIELDS = ("sleep_schedule", "cleanliness", "noise_level", "guests", "smoking", "pets")
@@ -31,7 +31,11 @@ def audience_filter(viewer: User):
     audience = func.coalesce(User.privacy_preferences["profile_audience"].astext, "everyone")
     preferences = viewer.seeker_preferences or {}
     matching = and_(*(User.seeker_preferences[key].astext == preferences[key] for key in MATCH_FIELDS)) if all(preferences.get(key) for key in MATCH_FIELDS) else False
-    return and_(User.is_profile_visible.is_(True), or_(audience == "everyone", and_(audience == "matches", matching)))
+    blocked = select(BlockedUser.id).where(or_(
+        and_(BlockedUser.blocker_id == viewer.id, BlockedUser.blocked_id == User.id),
+        and_(BlockedUser.blocked_id == viewer.id, BlockedUser.blocker_id == User.id),
+    )).correlate(User).exists()
+    return and_(~blocked, User.is_profile_visible.is_(True), or_(audience == "everyone", and_(audience == "matches", matching)))
 
 
 def public_preferences(user: User) -> PublicSeekerPreferences | None:

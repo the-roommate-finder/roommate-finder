@@ -33,6 +33,7 @@ from app.api.v1.schemas.schemas import (
 from app.core.config import settings
 from app.utils.storage import StorageClient
 from app.utils.profile_privacy import privacy, can_view_profile, member_profile
+from app.api.v1.repositories.chat_repository import BlockedUserRepository
 
 router = APIRouter(prefix="/users", tags=["Users"])
 
@@ -104,10 +105,11 @@ async def profile_visibility(body: VisibilityRequest, current_user: CurrentUser,
 @router.get("/me/blocked")
 async def blocked_users(current_user: CurrentUser, db: DbDep, response: Response):
     response.headers["Cache-Control"] = "no-store"
-    users = (await db.execute(select(User.id, User.display_name).join(
+    users = (await db.execute(select(User.id, User.display_name, User.avatar_url, BlockedUser.created_at.label("blocked_at")).join(
         BlockedUser, BlockedUser.blocked_id == User.id).where(
-        BlockedUser.blocker_id == current_user.id).order_by(BlockedUser.created_at.desc()))).all()
-    return [{"id": user.id, "display_name": user.display_name} for user in users]
+        BlockedUser.blocker_id == current_user.id).order_by(BlockedUser.created_at.desc(), User.id))).all()
+    return [{"id": user.id, "display_name": user.display_name, "avatar_url": user.avatar_url,
+             "blocked_at": user.blocked_at} for user in users]
 
 
 @router.get(
@@ -254,7 +256,8 @@ async def list_my_devices(
 async def get_user_profile(user_id: str, db: DbDep, _current_user: CurrentUser, response: Response):
     response.headers["Cache-Control"] = "no-store"
     user = await UserRepository(db).get_by_id(user_id)
-    if not user or user.is_deleted or not user.is_active or not can_view_profile(user, _current_user):
+    if (not user or user.is_deleted or not user.is_active or not can_view_profile(user, _current_user)
+            or await BlockedUserRepository(db).is_either_blocked(_current_user.id, user_id)):
         raise HTTPException(404, "User not found.")
     return member_profile(user)
 
