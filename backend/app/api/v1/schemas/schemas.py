@@ -10,6 +10,7 @@ from pydantic import (
     ConfigDict,
     EmailStr,
     Field,
+    ValidationInfo,
     field_validator,
     model_validator,
 )
@@ -296,6 +297,36 @@ class SeekerPreferences(BaseModel):
         return self
 
 
+class PublicSeekerPreferences(SeekerPreferences):
+    occupation: Optional[str] = None
+
+
+class PrivacyPreferences(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    profile_audience: Literal["everyone", "matches", "no_one"] = "everyone"
+    show_age: bool = True
+    show_occupation: bool = True
+    show_lifestyle: bool = True
+    show_about_me: bool = True
+    show_recently_active: bool = True
+    show_profile_activity: bool = True
+
+
+class MemberProfileResponse(BaseModel):
+    id: str
+    display_name: Optional[str] = None
+    avatar_url: Optional[str] = None
+    role: UserRole
+    bio: Optional[str] = None
+    age: Optional[int] = None
+    preferences: Optional[PublicSeekerPreferences] = None
+    is_email_verified: bool
+    is_phone_verified: bool
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+    last_active_at: Optional[datetime] = None
+
+
 class UserSelfResponse(UserPublicResponse):
     is_profile_visible: bool = True
     date_of_birth: Optional[datetime] = None
@@ -425,12 +456,20 @@ class ListingImageResponse(BaseModel):
     sort_order: int
 
 
+class ListingOwnerResponse(BaseModel):
+    model_config = _orm_config
+    id: str
+    display_name: Optional[str] = None
+    avatar_url: Optional[str] = None
+    role: UserRole
+
+
 class ListingResponse(BaseModel):
     model_config = _orm_config
 
     id: str
     owner_id: str
-    owner: UserPublicResponse
+    owner: ListingOwnerResponse
     title: str
     description: str
     property_type: PropertyType
@@ -530,6 +569,19 @@ class ChatUserResponse(BaseModel):
     location: Optional[str] = Field(default=None, validation_alias=AliasPath("seeker_preferences", "preferred_location"))
     role: UserRole
     is_phone_verified: bool = False
+
+    @model_validator(mode="before")
+    @classmethod
+    def respect_profile_audience(cls, value: Any, info: ValidationInfo):
+        from app.api.v1.models.models import User
+        from app.utils.profile_privacy import can_view_profile
+        if isinstance(value, User):
+            viewer = (info.context or {}).get("viewer")
+            visible = viewer is not None and can_view_profile(value, viewer)
+            return {"id": value.id, "display_name": value.display_name, "avatar_url": value.avatar_url,
+                "role": value.role, "is_phone_verified": value.is_phone_verified,
+                "seeker_preferences": value.seeker_preferences if visible else None}
+        return value
 
 
 class ConversationResponse(BaseModel):

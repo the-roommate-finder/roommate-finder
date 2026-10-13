@@ -28,10 +28,11 @@ from app.api.v1.schemas.schemas import (
     UserPublicResponse,
     UserSelfResponse,
     UserRoleUpdateRequest,
-    UserUpdateRequest,
+    UserUpdateRequest, PrivacyPreferences, MemberProfileResponse,
 )
 from app.core.config import settings
 from app.utils.storage import StorageClient
+from app.utils.profile_privacy import privacy, can_view_profile, member_profile
 
 router = APIRouter(prefix="/users", tags=["Users"])
 
@@ -39,6 +40,20 @@ router = APIRouter(prefix="/users", tags=["Users"])
 class VisibilityRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     is_profile_visible: StrictBool
+
+
+@router.get("/me/privacy", response_model=PrivacyPreferences)
+async def get_privacy(current_user: CurrentUser, response: Response):
+    response.headers["Cache-Control"] = "no-store"
+    return privacy(current_user)
+
+
+@router.put("/me/privacy", response_model=PrivacyPreferences)
+async def save_privacy(body: PrivacyPreferences, current_user: CurrentUser, db: DbDep, response: Response):
+    response.headers["Cache-Control"] = "no-store"
+    await UserRepository(db).update(current_user, privacy_preferences=body.model_dump(),
+        is_profile_visible=body.profile_audience != "no_one")
+    return body
 
 
 @router.get("/me/profile-summary")
@@ -53,7 +68,7 @@ async def profile_summary(current_user: CurrentUser, db: DbDep, response: Respon
         DashboardBookmark.user_id == uid, DashboardBookmark.kind == "room", *visible_rooms()))
     saved_roommates = await count(select(func.count()).select_from(DashboardBookmark).join(
         User, User.id == DashboardBookmark.target_id).where(
-        DashboardBookmark.user_id == uid, DashboardBookmark.kind == "roommate", *visible_roommates(uid)))
+        DashboardBookmark.user_id == uid, DashboardBookmark.kind == "roommate", *visible_roommates(current_user)))
     conversations = await count(select(func.count()).select_from(ConversationParticipant).where(
         ConversationParticipant.user_id == uid, ConversationParticipant.is_archived.is_(False)))
     searches = await count(select(func.count()).select_from(DashboardSearch).where(DashboardSearch.user_id == uid))
@@ -77,7 +92,12 @@ async def profile_summary(current_user: CurrentUser, db: DbDep, response: Respon
 
 @router.patch("/me/visibility")
 async def profile_visibility(body: VisibilityRequest, current_user: CurrentUser, db: DbDep):
-    user = await UserRepository(db).update(current_user, is_profile_visible=body.is_profile_visible)
+    values = privacy(current_user).model_dump()
+    if not body.is_profile_visible:
+        values["profile_audience"] = "no_one"
+    elif values["profile_audience"] == "no_one":
+        values["profile_audience"] = "everyone"
+    user = await UserRepository(db).update(current_user, is_profile_visible=body.is_profile_visible, privacy_preferences=values)
     return {"is_profile_visible": user.is_profile_visible}
 
 
@@ -230,24 +250,13 @@ async def list_my_devices(
     return [DeviceResponse.model_validate(d) for d in devices]
 
 
-@router.get(
-    "/{user_id}",
-    response_model=UserPublicResponse,
-    summary="Get public user profile",
-)
-async def get_user_profile(
-    user_id: str,
-    db: DbDep,
-    _current_user: CurrentUser,  # require authentication
-) -> UserPublicResponse:
-    user_repo = UserRepository(db)
-    user = await user_repo.get_by_id(user_id)
-    if not user or user.is_deleted or not user.is_active or (not user.is_profile_visible and user.id != _current_user.id):
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found.",
-        )
-    return UserPublicResponse.model_validate(user)
+@router.get("/{user_id}", response_model=MemberProfileResponse, summary="Get visible member profile")
+async def get_user_profile(user_id: str, db: DbDep, _current_user: CurrentUser, response: Response):
+    response.headers["Cache-Control"] = "no-store"
+    user = await UserRepository(db).get_by_id(user_id)
+    if not user or user.is_deleted or not user.is_active or not can_view_profile(user, _current_user):
+        raise HTTPException(404, "User not found.")
+    return member_profile(user)
 
 
 #  Admin-only 

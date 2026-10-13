@@ -70,7 +70,7 @@ class ChatService:
             requesting_user.id, target_user_id
         )
         if existing:
-            return ConversationResponse.model_validate(existing)
+            return ConversationResponse.model_validate(existing, context={"viewer": requesting_user})
 
         conversation = await self._convs.create_conversation(
             requesting_user.id, target_user_id
@@ -81,7 +81,7 @@ class ChatService:
             user_a=requesting_user.id,
             user_b=target_user_id,
         )
-        return ConversationResponse.model_validate(conversation)
+        return ConversationResponse.model_validate(conversation, context={"viewer": requesting_user})
 
     async def list_conversations(
         self,
@@ -102,7 +102,7 @@ class ChatService:
         total = await self._convs.count_user_conversations(user.id, include_archived)
         items = []
         for conversation in conversations:
-            item = ConversationResponse.model_validate(conversation)
+            item = ConversationResponse.model_validate(conversation, context={"viewer": user})
             if conversation.id in latest:
                 item.last_message = ChatMessageResponse.model_validate(latest[conversation.id])
             items.append(item)
@@ -115,7 +115,7 @@ class ChatService:
         conversation = await self._get_conversation_or_raise(
             conversation_id, requesting_user.id
         )
-        return ConversationResponse.model_validate(conversation)
+        return ConversationResponse.model_validate(conversation, context={"viewer": requesting_user})
 
     async def update_conversation_settings(
         self,

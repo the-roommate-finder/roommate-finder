@@ -1,0 +1,7 @@
+.privacy-preferences .notification-preferences-content { width: min(440px, calc(100% - 44px)); }
+.privacy-preferences .notification-preferences-row { max-width: 356px; }
+.privacy-audience label { display: flex; align-items: center; gap: 10px; min-height: 44px; font-size: 16px; line-height: 22px; cursor: pointer; }
+.privacy-audience input { appearance: none; width: 20px; height: 20px; flex-shrink: 0; border: 1px solid #191b1d; border-radius: 50%; margin: 0; background: transparent; padding: 0; box-shadow: none; }
+.privacy-audience input:checked { border-color: var(--dashboard-blue); background: radial-gradient(circle, var(--dashboard-blue) 0 5px, transparent 6px); }
+@media (max-width: 760px) { .privacy-preferences .notification-preferences-content { width: calc(100% - 36px); } .privacy-audience label { padding-block: 6px; } }
+@media (max-width: 380px) { .privacy-preferences .notification-preferences-content { width: 100%; } }

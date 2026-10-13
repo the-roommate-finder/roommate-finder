@@ -20,8 +20,9 @@ from app.api.v1.schemas.schemas import (
     PaginatedResponse,
     ReactionRequest,
     SendMessageRequest,
-    SeekerPreferences,
+    PublicSeekerPreferences,
 )
+from app.utils.profile_privacy import can_view_profile, member_profile
 from app.core.rate_limit import CHAT_LIMIT, limiter
 
 router = APIRouter(prefix="/chat", tags=["Chat"])
@@ -256,11 +257,12 @@ class ParticipantProfile(BaseModel):
     avatar_url: str | None
     bio: str | None
     role: UserRole
-    preferences: SeekerPreferences | None
+    preferences: PublicSeekerPreferences | None
     is_email_verified: bool
     is_phone_verified: bool
-    created_at: datetime
-    updated_at: datetime
+    profile_visible: bool = True
+    created_at: datetime | None
+    updated_at: datetime | None
     is_saved: bool
     can_save: bool
     is_blocked: bool
@@ -293,13 +295,17 @@ async def participant_profile(conversation_id: UUID, db: DbDep, current_user: Cu
         BlockedUser.blocked_id == target.id))).scalar_one_or_none()
     reported = (await db.execute(select(UserReport.id).where(UserReport.reporter_id == current_user.id,
         UserReport.conversation_id == str(conversation_id)))).scalar_one_or_none()
+    visible = can_view_profile(target, current_user)
+    public = member_profile(target)
     return ParticipantProfile(id=target.id, conversation_id=str(conversation_id), display_name=target.display_name,
-        avatar_url=target.avatar_url, bio=target.bio, role=target.role,
-        preferences=SeekerPreferences.model_validate(target.seeker_preferences) if target.seeker_preferences else None,
+        avatar_url=target.avatar_url, bio=public.bio if visible else None, role=target.role,
+        profile_visible=visible,
+        preferences=public.preferences if visible else None,
         is_email_verified=target.is_email_verified, is_phone_verified=target.is_phone_verified,
-        created_at=target.created_at, updated_at=target.updated_at, is_saved=bool(saved),
+        created_at=public.created_at if visible else None, updated_at=public.updated_at if visible else None,
+        is_saved=bool(saved),
         can_save=current_user.role == UserRole.SEEKER and target.role == UserRole.SEEKER
-            and target.is_profile_complete and target.is_email_verified and target.is_profile_visible,
+            and target.is_profile_complete and target.is_email_verified and visible,
         is_blocked=blocked is not None, is_reported=reported is not None)
 
 

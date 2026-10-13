@@ -307,3 +307,24 @@ not permanently erase retained records. Identity verification is not available y
 the UI says so. The stored sleep schedule is displayed instead of inventing work style.
 Run migration `0009_profile_visibility` before using this screen. Browser checks live
 in `tests/dashboard-profile.spec.ts`; backend checks in `tests/test_dashboard_profile.py`.
+
+### Notification preferences
+
+Profile → Notifications opens `/dashboard/profile/notifications`. The ten accessible
+switches load account preferences from `GET /api/member/notifications/preferences`;
+Save preferences sends a complete `PUT` update. Failed saves retain the edited values,
+and failed loads offer a retry without showing invented settings. The header bell
+continues to open the notifications inbox. The reference colours, fonts and spacing
+are reused, with the logo slot reserved and a stacked layout on small screens.
+Checks: `tests/notification-preferences.spec.ts` and `tests/member-route.test.cjs`.
+
+### Privacy settings
+
+Profile → Privacy opens `/dashboard/profile/privacy`. Three exclusive audience choices
+and six visibility switches follow the supplied reference, with keyboard controls,
+mobile layout, persisted values and save/retry feedback. Save preferences calls
+`/api/member/users/me/privacy`; the Profile Visibility switch stays synchronized.
+Matching-only visibility uses the existing sleep-schedule and cleanliness match rule.
+The backend redacts hidden details; cards and chat profiles tolerate missing fields
+and timestamps. A private chat profile retains messaging, report and block controls.
+Checks: `tests/privacy-preferences.spec.ts`, `tests/chat-profile.spec.ts` and proxy tests.

@@ -251,3 +251,18 @@ test('notification preferences proxy validates origin and fields and forwards au
   assert.equal((await handlers(noUpstream).PUT(request(path, 'PUT', payload, { origin: 'https://evil.example' }), context(path))).status, 403);
   assert.equal((await handlers(noUpstream).GET(request(path, 'GET', undefined, { cookie: '' }), context(path))).status, 401);
 });
+
+test('privacy endpoint only changes the current account and rejects cross-site writes', async () => {
+  const path = 'users/me/privacy';
+  const payload = { profile_audience: 'matches', show_age: false };
+  const { GET, PUT } = handlers(async (url, options) => {
+    assert.equal(url, 'http://127.0.0.1:8000/api/v1/users/me/privacy');
+    assert.equal(options.headers.Authorization, 'Bearer private-access');
+    if (options.method === 'PUT') assert.deepEqual(JSON.parse(options.body), payload);
+    return Response.json(payload);
+  });
+  assert.equal((await PUT(request(path, 'PUT', payload), context(path))).status, 200);
+  assert.deepEqual(await (await GET(request(path), context(path))).json(), payload);
+  assert.equal((await handlers(noUpstream).PUT(request(path, 'PUT', { ...payload, user_id: 'RMF-000002' }), context(path))).status, 400);
+  assert.equal((await handlers(noUpstream).PUT(request(path, 'PUT', payload, { origin: 'https://evil.example' }), context(path))).status, 403);
+});

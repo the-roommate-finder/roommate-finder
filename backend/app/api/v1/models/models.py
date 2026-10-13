@@ -152,6 +152,9 @@ class User(Base):
     notification_preferences: Mapped[dict] = mapped_column(
         JSONB, default=dict, server_default=text("'{}'::jsonb"), nullable=False
     )
+    privacy_preferences: Mapped[dict] = mapped_column(
+        JSONB, default=dict, server_default=text("'{}'::jsonb"), nullable=False
+    )
 
     # Status flags
     is_active: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)

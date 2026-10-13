@@ -24,9 +24,8 @@
 .notification-preferences-success { color: #087443; }
 @media (max-width: 760px) {
   .dashboard-main.dashboard-notification-preferences { padding: 20px 20px 48px; }
-  .notification-preferences-heading { flex-wrap: wrap; gap: 12px; }
-  .notification-preferences-heading > div { flex: 1; }
-  .seeker-dashboard .notification-preferences-save { margin: 12px 0 0 36px; }
+  .notification-preferences-heading { display: grid; grid-template-columns: 24px minmax(0, 1fr); gap: 12px; }
+  .seeker-dashboard .notification-preferences-save { grid-column: 2; justify-self: start; margin: 12px 0 0; }
   .notification-preferences-content { margin-left: 36px; width: calc(100% - 36px); margin-top: 36px; }
   .notification-preferences-row { gap: 12px; padding-block: 2px; }
 }

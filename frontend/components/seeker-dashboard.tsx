@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { ArrowRight, Bell, ChevronDown, Heart, Home, LogOut, MapPin, Menu, MessageSquare, Search, SlidersHorizontal, Star, UserRound, X } from 'lucide-react';
 import { DashboardBrowseFilters, EMPTY_BROWSE, browseQuery, type BrowseFilters } from './dashboard-browse-filters';
+import { PrivacyPreferences } from './privacy-preferences';
 import { NotificationPreferences } from './notification-preferences';
 import { DashboardProfile } from './dashboard-profile';
 import { ChatProfile } from './chat-profile';
@@ -15,9 +16,9 @@ import { listingPrice, photo, postedAt, type PublicListing } from './listing-fee
 
 type Kind = 'room' | 'roommate';
 type Filters = { city: string; area: string; kind: Kind };
-type Preferences = { occupation: string; budget_min: number; budget_max: number; preferred_location?: string; move_in_timeline?: string;
+type Preferences = { occupation: string | null; budget_min: number; budget_max: number; preferred_location?: string; move_in_timeline?: string;
   sleep_schedule?: string; cleanliness?: string; noise_level?: string; guests?: string; smoking?: string; pets?: string };
-type Person = { id: string; display_name: string | null; age: number | null; avatar_url: string | null; bio: string | null; updated_at: string; preferences: Preferences };
+type Person = { id: string; display_name: string | null; age: number | null; avatar_url: string | null; bio: string | null; updated_at: string | null; preferences: Preferences };
 type Page<T> = { items: T[]; total: number; page: number; pages: number };
 type Dashboard = { user: { id: string; display_name: string | null; is_profile_complete: boolean; seeker_preferences?: Preferences | null };
   rooms: Page<PublicListing>; roommates: Page<Person>; saved: { kind: Kind; id: string }[];
@@ -38,7 +39,7 @@ function budget(person: Person) {
 function safeImage(url: string | null) { return url && (/^https?:\/\//i.test(url) || /^\/(?!\/)/.test(url)) ? url : undefined; }
 function personName(person: Person) { return `${person.display_name || 'Roommate'}${person.age !== null ? `, ${person.age} years` : ''}`; }
 
-export function SeekerDashboard({ initialView = 'home', initialParticipant, initialConversation, initialDraft, profileConversation, initialSavedKind = 'room', profileSettings }: { profileSettings?: 'notifications'; initialView?: 'home' | 'browse' | 'saved' | 'messages' | 'profile'; initialSavedKind?: Kind; initialParticipant?: string; initialConversation?: string; initialDraft?: string; profileConversation?: string }) {
+export function SeekerDashboard({ initialView = 'home', initialParticipant, initialConversation, initialDraft, profileConversation, initialSavedKind = 'room', profileSettings }: { profileSettings?: 'notifications' | 'privacy'; initialView?: 'home' | 'browse' | 'saved' | 'messages' | 'profile'; initialSavedKind?: Kind; initialParticipant?: string; initialConversation?: string; initialDraft?: string; profileConversation?: string }) {
   const router = useRouter();
   const [view, setView] = useState<'home' | 'browse' | 'saved' | 'matches' | 'messages' | 'profile'>(initialView);
   const [savedKind, setSavedKind] = useState<Kind>(initialSavedKind);
@@ -216,9 +217,9 @@ export function SeekerDashboard({ initialView = 'home', initialParticipant, init
           <Link href="/dashboard/profile" className="dashboard-user"><span className="dashboard-avatar">{data ? initials : '…'}</span><span>{fullName}</span></Link>
         </div>
       </header>
-      <main className={`dashboard-main ${view === 'profile' ? (profileSettings === 'notifications' ? 'dashboard-notification-preferences' : 'dashboard-own-profile') : view === 'browse' ? 'dashboard-browse' : view === 'saved' ? 'dashboard-saved' : view === 'messages' ? (profileConversation ? 'dashboard-profile-main' : 'dashboard-messages-main') : ''}`} >
+      <main className={`dashboard-main ${view === 'profile' ? (profileSettings ? 'dashboard-notification-preferences' : 'dashboard-own-profile') : view === 'browse' ? 'dashboard-browse' : view === 'saved' ? 'dashboard-saved' : view === 'messages' ? (profileConversation ? 'dashboard-profile-main' : 'dashboard-messages-main') : ''}`} >
         {actionError && <p className="dashboard-error" role="alert">{actionError}</p>}
-        {view === 'profile' ? (profileSettings === 'notifications' ? <NotificationPreferences /> : <DashboardProfile onLogout={logout} loggingOut={loggingOut} onNotifications={() => router.push('/dashboard/profile/notifications')} />) : view === 'messages' ? <>{error ? <div className="dashboard-empty" role="alert">{error}<button onClick={() => setRefresh(value => value + 1)}>Try again</button></div> : data ? (profileConversation ? <ChatProfile key={profileConversation} conversationId={profileConversation} /> : <DashboardMessages userId={data.user.id} initialParticipant={initialParticipant} initialConversation={initialConversation} initialDraft={initialDraft} />) : <p role="status">Loading messages…</p>}</> : <>
+        {view === 'profile' ? (profileSettings === 'notifications' ? <NotificationPreferences /> : profileSettings === 'privacy' ? <PrivacyPreferences /> : <DashboardProfile onLogout={logout} loggingOut={loggingOut} onNotifications={() => router.push('/dashboard/profile/notifications')} />) : view === 'messages' ? <>{error ? <div className="dashboard-empty" role="alert">{error}<button onClick={() => setRefresh(value => value + 1)}>Try again</button></div> : data ? (profileConversation ? <ChatProfile key={profileConversation} conversationId={profileConversation} /> : <DashboardMessages userId={data.user.id} initialParticipant={initialParticipant} initialConversation={initialConversation} initialDraft={initialDraft} />) : <p role="status">Loading messages…</p>}</> : <>
         {view === 'saved' ? <>
           <div className="dashboard-saved-heading"><h1>Saved</h1><p>Keep track of rooms and roommates you’re interested in.</p>
             <div className="dashboard-saved-tabs" role="group" aria-label="Saved category">
@@ -244,8 +245,8 @@ export function SeekerDashboard({ initialView = 'home', initialParticipant, init
           {view !== 'browse' && view !== 'saved' && <div className="dashboard-section-heading"><h2>{sectionTitle}</h2>{view === 'home' && <button onClick={() => navigate('browse')}>View all recommendations</button>}{view !== 'home' && <button onClick={() => navigate('home')}>Back to home</button>}</div>}
           {error && !loading ? <div className="dashboard-empty" role="alert"><p>{error}</p><button onClick={() => setRefresh(value => value + 1)}>Try again</button></div> : loading ? <div className="dashboard-loading" role="status">{view === 'saved' ? 'Loading your saved items…' : 'Loading your recommendations…'}<div className="dashboard-grid">{[1, 2, 3].map(id => <div className="dashboard-skeleton" key={id} />)}</div></div> : data && <>
             {(view !== 'saved' || savedKind === 'roommate') && <section className="dashboard-card-section dashboard-roommates">{view !== 'saved' && <h3>Roommates for you</h3>}
-              {data.roommates.items.length ? <div className="dashboard-grid">{data.roommates.items.map(person => { const allTraits = traits(person); return <RoommateCard key={person.id} name={personName(person)} occupation={person.preferences.occupation}
-                location={person.preferences.preferred_location || 'Location not specified'} budget={budget(person)} traits={[...allTraits.slice(0, 2), ...(allTraits.length > 2 ? [`+${allTraits.length - 2} more`] : [])]} updated={postedAt(person.updated_at).replace('Posted', 'Profile updated')}
+              {data.roommates.items.length ? <div className="dashboard-grid">{data.roommates.items.map(person => { const allTraits = traits(person); return <RoommateCard key={person.id} name={personName(person)} occupation={person.preferences.occupation || ''}
+                location={person.preferences.preferred_location || 'Location not specified'} budget={budget(person)} traits={[...allTraits.slice(0, 2), ...(allTraits.length > 2 ? [`+${allTraits.length - 2} more`] : [])]} updated={person.updated_at ? postedAt(person.updated_at).replace('Posted', 'Profile updated') : 'Profile activity private'}
                 image={safeImage(person.avatar_url)} moveIn={timelines[person.preferences.move_in_timeline || ''] || 'Move-in date not specified'} onViewProfile={() => setSelected({ kind: 'roommate', item: person })}
                 saveAction={view === 'saved' ? 'remove' : 'toggle'} saved={isSaved('roommate', person.id)} saving={!!saving} onToggleSave={() => toggleSave('roommate', person.id)} />; })}</div>
                 : <div className="dashboard-empty"><UserRound /><p>{view === 'saved' ? 'Your saved roommates will appear here.' : view === 'matches' ? 'No matching roommates yet. Complete your lifestyle preferences to find people with similar habits.' : 'No roommates found yet. Try a different location or check back soon.'}</p></div>}{pagination('roommate', data.roommates)}

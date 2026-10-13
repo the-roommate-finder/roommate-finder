@@ -19,6 +19,7 @@ const endpoints: Endpoint[] = [
   } },
   { path: /^users\/me\/(profile-summary|blocked|sessions)$/, methods: { GET: {} } },
   { path: /^users\/me\/visibility$/, methods: { PATCH: { fields: ['is_profile_visible'] } } },
+  { path: /^users\/me\/privacy$/, methods: { GET: {}, PUT: { fields: ['profile_audience', 'show_age', 'show_occupation', 'show_lifestyle', 'show_about_me', 'show_recently_active', 'show_profile_activity'] } } },
   { path: /^chat\/block\/RMF-[0-9]{6}$/, methods: { DELETE: {} } },
   { path: /^users\/me\/complete-profile$/, methods: {
     POST: { fields: ['display_name', 'bio', 'gender', 'phone_number', 'date_of_birth', 'seeker_preferences'] },

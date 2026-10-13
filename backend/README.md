@@ -187,3 +187,39 @@ discovery and public user lookups but remain accessible within existing conversa
 The existing account soft-delete endpoint also deactivates sessions and revokes refresh
 tokens. `tests/test_dashboard_profile.py` covers visibility, private counts, blocking
 and account deletion with isolated test users.
+
+### Notification preferences
+
+Run `alembic upgrade head` for migration `0010_notification_preferences`. Authenticated
+`GET` and `PUT /notifications/preferences` load/save ten strict boolean preferences
+on the current account. Defaults are enabled, matching the supplied screen. Both the
+API notification service and Celery dispatcher check these preferences before creating
+new in-app alerts; previously received notifications remain in the inbox.
+
+The existing notification enum maps to new messages, saved-listing updates, login
+alerts, verification and account activity. SYSTEM producers can pass
+`data.preference_category` as `new_rooms`, `new_matching_roommates`, `product_updates`
+or `promotions`; SAVED_LISTING_UPDATE can specify `listing_unavailable`. This change
+stores those preferences and enforces them at dispatch, but does not add new event
+producers/campaigns, browser push, or alter OTP/password-reset/security email delivery.
+Tests: `tests/test_notification_preferences.py` covers persistence, isolation, validation
+and filtering in API/worker creation paths.
+
+### Profile privacy
+
+Migration `0011_privacy_preferences` stores audience and field visibility choices.
+`GET/PUT /users/me/privacy` are authenticated, account-scoped and reject unknown keys
+or non-boolean switch values. `profile_audience` accepts `everyone`, `matches`, or
+`no_one`; everyone means authenticated members. Matching uses the existing sleep
+schedule + cleanliness rule, requiring both values to be present and equal.
+
+Browse, saved-roommate results/counts and public profile lookups enforce this audience.
+The existing Profile Visibility switch synchronizes with the audience setting.
+Public responses redact age, occupation, lifestyle, bio and activity timestamps when
+hidden, while `/users/me` retains the owner’s complete details. Chat profiles hide
+private sections and location for unauthorized viewers but retain basic identity and
+conversation/report/block actions. Existing messages and read receipts remain available.
+Authenticated listing owners now expose basic identity only, closing the old path
+that exposed contact details/bio/activity through a listing. Recent-activity visibility
+controls the public profile timestamp; this does not add a new online-status indicator.
+Tests: `tests/test_privacy_preferences.py`, plus dashboard/chat/profile regressions.

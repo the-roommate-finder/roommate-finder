@@ -11,7 +11,8 @@ from sqlalchemy.orm import selectinload
 
 from app.api.v1.dependencies import CurrentUser, DbDep, require_role
 from app.api.v1.models.models import DashboardBookmark, DashboardSearch, Listing, PropertyType, User, UserRole
-from app.api.v1.schemas.schemas import PublicListingResponse, SeekerPreferences, UserSelfResponse
+from app.api.v1.schemas.schemas import PublicListingResponse, PublicSeekerPreferences, UserSelfResponse
+from app.utils.profile_privacy import audience_filter, member_profile
 
 router = APIRouter(prefix="/dashboard", tags=["Seeker dashboard"], dependencies=[require_role(UserRole.SEEKER)])
 Kind = Literal["room", "roommate"]
@@ -30,21 +31,19 @@ class RoommateResponse(BaseModel):
     age: int | None
     avatar_url: str | None
     bio: str | None
-    preferences: SeekerPreferences
-    updated_at: datetime
+    preferences: PublicSeekerPreferences
+    updated_at: datetime | None
 
 
 def roommate(user: User) -> RoommateResponse:
-    today = datetime.now(timezone.utc).date()
-    dob = user.date_of_birth.date() if user.date_of_birth else None
-    age = today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day)) if dob else None
-    return RoommateResponse(id=user.id, display_name=user.display_name, age=age,
-                            avatar_url=user.avatar_url, bio=user.bio,
-                            preferences=SeekerPreferences.model_validate(user.seeker_preferences), updated_at=user.updated_at)
+    public = member_profile(user)
+    return RoommateResponse(id=user.id, display_name=user.display_name, age=public.age,
+                            avatar_url=user.avatar_url, bio=public.bio,
+                            preferences=public.preferences, updated_at=public.updated_at)
 
 
-def visible_roommates(user_id: str):
-    return [User.id != user_id, User.role == UserRole.SEEKER, User.is_active.is_(True),
+def visible_roommates(viewer: User):
+    return [User.id != viewer.id, audience_filter(viewer), User.role == UserRole.SEEKER, User.is_active.is_(True),
             User.is_email_verified.is_(True), User.is_deleted.is_(False), User.is_profile_visible.is_(True),
             User.is_profile_complete.is_(True), User.seeker_preferences["occupation"].astext.is_not(None)]
 
@@ -83,7 +82,7 @@ async def dashboard(db: DbDep, current_user: CurrentUser, response: Response,
                     saved_sort: Literal["recent", "oldest", "price_low", "price_high"] = "recent",
                     page_size: int = Query(default=3, ge=1, le=30), mode: Literal["all", "saved", "matches"] = "all"):
     response.headers["Cache-Control"] = "no-store"
-    room_filters, person_filters = visible_rooms(), visible_roommates(current_user.id)
+    room_filters, person_filters = visible_rooms(), visible_roommates(current_user)
     for value, room_column in ((city.strip(), Listing.city), (area.strip(), Listing.address)):
         if value:
             room_filters.append(func.lower(room_column).contains(value.lower(), autoescape=True))
@@ -127,7 +126,7 @@ async def dashboard(db: DbDep, current_user: CurrentUser, response: Response,
     matching = [User.seeker_preferences[key].astext == preferences[key]
                 for key in ("sleep_schedule", "cleanliness") if preferences.get(key)]
     # Only describe a lifestyle match when both choices are supplied and match.
-    match_filters = visible_roommates(current_user.id) + (matching if len(matching) == 2 else [False])
+    match_filters = visible_roommates(current_user) + (matching if len(matching) == 2 else [False])
     match_count = (await db.execute(select(func.count()).select_from(User).where(*match_filters))).scalar_one()
     if mode == "matches":
         person_filters.extend(match_filters)
@@ -167,7 +166,7 @@ async def save(kind: Kind, target_id: str, db: DbDep, current_user: CurrentUser)
             raise HTTPException(404, "Room not found.")
         model, filters = Listing, visible_rooms()
     else:
-        model, filters = User, visible_roommates(current_user.id)
+        model, filters = User, visible_roommates(current_user)
     found = (await db.execute(select(model.id).where(model.id == target_id, *filters))).scalar_one_or_none()
     if not found:
         raise HTTPException(404, "This room or roommate is no longer available.")
