@@ -362,3 +362,11 @@ The page shows the five most recent recorded sign-ins and saves the security-ale
 switch immediately, preserving other notification preferences. Failed saves retain
 the previous switch state. Two-factor setup is explicitly unavailable until a future
 2FA implementation. Checks: `tests/security-settings.spec.ts` and member proxy tests.
+
+### Help and support
+
+Profile → Help & Support and View Help Center both open
+`/dashboard/profile/help-support`. Six keyboard-accessible help topics expand in place;
+email and phone links use the contact details supplied in the design reference.
+The page shares the dashboard header, navigation and mobile layout. Help content lives
+in `components/help-support.tsx` and reflects the currently available app features.
