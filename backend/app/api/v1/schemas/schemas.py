@@ -327,22 +327,40 @@ class MemberProfileResponse(BaseModel):
     last_active_at: Optional[datetime] = None
 
 
+class ListerProfile(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+    lister_type: Literal["property_owner", "real_estate_agent", "property_manager"]
+    property_name: str = Field(min_length=1, max_length=150)
+    cac_number: Optional[str] = Field(default=None, max_length=50)
+
+
 class UserSelfResponse(UserPublicResponse):
     is_profile_visible: bool = True
     date_of_birth: Optional[datetime] = None
     seeker_preferences: Optional[SeekerPreferences] = None
+    lister_profile: Optional[ListerProfile] = None
+    property_logo_url: Optional[str] = None
 
 
 class CompleteProfileRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     display_name: str = Field(min_length=1, max_length=100)
     bio: Optional[str] = Field(default=None, max_length=1000)
     gender: Optional[UserGender] = None
     phone_number: Optional[str] = Field(default=None, pattern=r"^\+[1-9][0-9]{7,14}$")
     date_of_birth: Optional[datetime] = None
     seeker_preferences: Optional[SeekerPreferences] = None
+    lister_profile: Optional[ListerProfile] = None
 
     @model_validator(mode="after")
     def validate_seeker_details(self) -> "CompleteProfileRequest":
+        if self.lister_profile is not None:
+            if self.seeker_preferences is not None:
+                raise ValueError("Choose either seeker or lister profile details.")
+            if not self.phone_number:
+                raise ValueError("Phone number is required.")
+            if self.bio and len(self.bio) > 500:
+                raise ValueError("About you must be at most 500 characters.")
         if self.date_of_birth:
             if self.date_of_birth.date() >= datetime.now(timezone.utc).date():
                 raise ValueError("Date of birth must be in the past.")

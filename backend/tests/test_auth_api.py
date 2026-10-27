@@ -240,7 +240,11 @@ async def test_verification_session_and_resume_onboarding(api, role, channel):
     draft = await api.client.patch("/api/v1/users/me", headers=headers, json={"bio": "Draft bio"})
     assert draft.status_code == 200
     assert draft.json()["is_profile_complete"] is False
-    completed = await api.client.post(endpoint, headers=headers, json={"display_name": "  Test User  "})
+    details = {"display_name": "  Test User  "}
+    if role == "lister":
+        details.update(phone_number="+234" + user["id"].split("-")[-1].zfill(10),
+                       lister_profile={"lister_type": "property_owner", "property_name": "Test Property"})
+    completed = await api.client.post(endpoint, headers=headers, json=details)
     assert completed.status_code == 200, completed.text
     assert completed.json()["is_profile_complete"] is True
     assert completed.json()["display_name"] == "Test User"

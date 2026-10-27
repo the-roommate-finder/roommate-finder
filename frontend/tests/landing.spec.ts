@@ -11,12 +11,16 @@ const feed = (items = [listing], total = items.length, pages = 1) => ({ items, t
 
 test.beforeEach(async ({ page }) => {
   await page.route('**/api/listings?**', route => route.fulfill({ json: feed([]) }));
+  await page.route('**/api/member/dashboard?**', route => route.fulfill({ status: 401, json: { message: 'Sign in required.' } }));
 });
 
-test('home links to auth and has no fabricated listings, reviews, counts or prices', async ({ page }) => {
+test('home has no fabricated profiles or reviews and labels planned paid plans', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'No listings found' })).toBeVisible();
-  await expect(page.locator('.room-card, .roommate-card, .landing-reviews, .landing-pricing')).toHaveCount(0);
+  await expect(page.locator('.room-card, .roommate-card, .landing-reviews figure')).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'Sign in to browse' })).toBeVisible();
+  await expect(page.locator('.pricing-card.premium')).toHaveCount(2);
+  for (const button of await page.locator('.pricing-card.premium button').all()) await expect(button).toBeDisabled();
   await expect(page.locator('body')).not.toContainText('15,000');
   await expect(page.locator('body')).not.toContainText('Micheal');
   await page.getByRole('link', { name: 'Get Started', exact: true }).click();
@@ -87,6 +91,98 @@ test('pagination and focus refresh use backend results', async ({ page }) => {
   await expect(page.locator('.room-card')).toContainText(listing.title);
 });
 
+test('roommate search uses authenticated results and opens the selected profile', async ({ page }) => {
+  const person = { id: 'RMF-123456', display_name: 'Test Seeker', age: null, avatar_url: null, bio: null, updated_at: null,
+    preferences: { occupation: null, preferred_location: 'Yaba, Lagos', budget_min: 50000, budget_max: 150000, smoking: 'no', sleep_schedule: 'early_bird' } };
+  await page.route('**/api/member/dashboard?**', route => {
+    const params = new URL(route.request().url()).searchParams;
+    return route.fulfill({ json: { roommates: { items: params.get('city') === 'Lagos' && params.get('area') === 'Yaba' ? [person] : [] } } });
+  });
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: 'No roommates found' })).toBeVisible();
+  await page.getByLabel('City', { exact: true }).fill('Lagos');
+  await page.getByLabel('Area', { exact: true }).fill('Yaba');
+  await page.getByLabel('Looking for', { exact: true }).selectOption('roommate');
+  const requests: string[] = [];
+  page.on('request', request => { if (request.url().includes('/api/listings?')) requests.push(request.url()); });
+  await page.getByRole('button', { name: 'Search Now' }).click();
+  await expect(page.locator('.roommate-card')).toHaveCount(1);
+  await expect(page.locator('.roommate-card')).toContainText('NGN50K–NGN150K/month');
+  await expect(page.locator('.roommate-card')).toContainText('Profile activity private');
+  await expect(page.locator('.live-listings')).toHaveCount(0);
+  expect(requests).toHaveLength(0);
+  await page.getByRole('button', { name: 'View Profile' }).click();
+  await expect(page.getByRole('dialog')).toContainText('Test Seeker');
+  await expect(page.getByRole('dialog').getByRole('link', { name: 'Message', exact: true })).toHaveAttribute('href', '/dashboard/messages?participant=RMF-123456');
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('button', { name: 'View Profile' })).toBeFocused();
+});
+
+test('roommate errors retry without exposing sample profiles', async ({ page }) => {
+  let failed = true;
+  await page.route('**/api/member/dashboard?**', route => route.fulfill(failed ? { status: 502, json: { message: 'Could not load profiles.' } } : { json: { roommates: { items: [] } } }));
+  await page.goto('/');
+  await expect(page.locator('.roommates-section [role="alert"]')).toContainText('Could not load profiles.');
+  await expect(page.locator('.roommate-card')).toHaveCount(0);
+  failed = false;
+  await page.locator('.roommates-section').getByRole('button', { name: 'Try again' }).click();
+  await expect(page.getByRole('heading', { name: 'No roommates found' })).toBeVisible();
+});
+
+test('section links, FAQ keyboard controls, and free signup actions work', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('navigation', { name: 'Main navigation', exact: true }).getByRole('link', { name: 'About us', exact: true }).click();
+  await expect(page).toHaveURL(/#about$/);
+  await page.getByRole('navigation', { name: 'Main navigation', exact: true }).getByRole('link', { name: 'Pricing', exact: true }).click();
+  await expect(page).toHaveURL(/#pricing$/);
+  const summary = page.locator('.faq-list summary').first();
+  await summary.focus(); await page.keyboard.press('Enter');
+  await expect(page.locator('.faq-list details').first()).toHaveAttribute('open', '');
+  await expect(page.locator('.faq-list details').first().locator('p')).toBeVisible();
+  await page.keyboard.press('Enter');
+  await expect(page.locator('.faq-list details').first()).not.toHaveAttribute('open', '');
+  await expect(page.locator('.landing-cta').getByRole('link', { name: 'List a Space' })).toHaveAttribute('href', '/signup?role=lister');
+  for (const icon of await page.locator('.landing-page .design-icon img').all()) {
+    expect(await icon.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0)).toBeTruthy();
+  }
+});
+
+test('mobile menu supports touch, dismissal, keyboard and sticky-header navigation', async ({ browser }) => {
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true });
+  const page = await context.newPage();
+  await page.route('**/api/listings?**', route => route.fulfill({ json: feed([]) }));
+  await page.route('**/api/member/dashboard?**', route => route.fulfill({ status: 401, json: {} }));
+  await page.goto('/');
+  const toggle = page.getByLabel('Toggle navigation menu');
+  const menu = page.getByRole('navigation', { name: 'Mobile navigation', exact: true });
+  await toggle.tap(); await expect(menu).toBeVisible();
+  await toggle.tap(); await expect(menu).not.toBeVisible();
+  await toggle.tap();
+  await menu.getByRole('link', { name: 'Pricing', exact: true }).tap();
+  await expect(page).toHaveURL(/#pricing$/); await expect(menu).not.toBeVisible();
+  await toggle.tap(); await expect(menu).toBeVisible();
+  await page.keyboard.press('Escape'); await expect(menu).not.toBeVisible(); await expect(toggle).toBeFocused();
+  await page.keyboard.press('Enter'); await expect(menu).toBeVisible();
+  await page.mouse.click(5, 800); await expect(menu).not.toBeVisible();
+  await toggle.tap();
+  await page.setViewportSize({ width: 1200, height: 844 });
+  await expect(page.locator('.mobile-menu')).not.toHaveAttribute('open', '');
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(menu).not.toBeVisible();
+  await context.close();
+});
+
+test('mobile menu opens before JavaScript is available', async ({ browser }) => {
+  const context = await browser.newContext({ javaScriptEnabled: false, viewport: { width: 390, height: 844 }, hasTouch: true });
+  const page = await context.newPage();
+  await page.goto('/');
+  await page.getByLabel('Toggle navigation menu').tap();
+  await expect(page.getByRole('navigation', { name: 'Mobile navigation', exact: true })).toBeVisible();
+  await page.getByRole('navigation', { name: 'Mobile navigation', exact: true }).getByRole('link', { name: 'Login', exact: true }).tap();
+  await expect(page).toHaveURL(/login$/);
+  await context.close();
+});
+
 for (const width of [1440, 768, 390, 320]) {
   test(`live cards preserve layout at ${width}px`, async ({ page }) => {
     await page.route('**/api/listings?**', route => route.fulfill({ json: feed() }));
@@ -104,7 +200,7 @@ for (const width of [1440, 768, 390, 320]) {
       await expect(page.locator('.room-card')).toHaveCSS('border-radius', '20px');
     }
     if (width < 950) {
-      await page.locator('.mobile-nav summary').click();
+      await page.getByLabel('Toggle navigation menu').click();
       await page.getByRole('navigation', { name: 'Mobile navigation' }).getByRole('link', { name: 'How it Works' }).click();
       await expect(page).toHaveURL(/#how-it-works$/);
     }

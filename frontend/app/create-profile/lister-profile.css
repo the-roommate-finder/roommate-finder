@@ -1,0 +1,41 @@
+.lister-profile-page { padding:60px 24px; color:#242e29; }
+.lister-profile-card { max-width:1088px; margin:auto; background:#fff; border-radius:20px; }
+.lister-profile-heading { position:relative; padding:64px 32px 50px; text-align:center; overflow:hidden; }
+.lister-profile-heading>.logo-slot { width:110px; height:88px; display:flex; align-items:center; justify-content:center; }
+.lister-profile-heading h1 { margin:22px 0 8px; font-size:18px; line-height:26px; font-weight:500; color:#121212; }
+.lister-profile-heading>p { margin:0 auto; max-width:640px; font-size:16px; line-height:24px; color:#121212; }
+.lister-profile-heading .profile-photo { margin:32px 0 0; }
+.lister-decoration { position:absolute; width:230px; height:320px; right:0; top:148px; pointer-events:none; }
+.lister-profile-fields { min-width:0; margin:0; padding:50px 32px; border:0; border-top:1px solid #d9d9d9; }
+.lister-role-group { min-width:0; margin:0; padding:0; border:0; }
+.lister-role-group>legend,.lister-details h2 { margin:0 0 18px; padding:0; font-size:20px; line-height:28px; font-weight:700; }
+.lister-role-options { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; }
+.lister-role-option { position:relative; cursor:pointer; min-width:0; }
+.lister-role-option>input { position:absolute; width:1px; height:1px; opacity:0; }
+.lister-role-card { position:relative; display:flex; flex-direction:column; min-height:154px; padding:16px 15px; border:1px solid #999; border-radius:12px; background:white; }
+.lister-role-card strong { margin-top:14px; font-weight:600; font-size:14px; line-height:21px; }
+.lister-role-card>span { margin-top:4px; color:#747b78; font-size:12px; line-height:18px; }
+.lister-role-card>i { position:absolute; right:15px; top:18px; width:18px; height:18px; border:2px solid #e3e6e4; border-radius:50%; background:white; }
+.lister-role-option>input:checked+.lister-role-card { border-color:#8883ca; background:#d6d5e9; box-shadow:inset 0 0 0 .5px #8883ca; }
+.lister-role-option>input:checked+.lister-role-card>i { border:5px solid #8883ca; }
+.lister-role-option>input:focus-visible+.lister-role-card { outline:3px solid #5b7bd5; outline-offset:3px; }
+.lister-details { margin-top:50px; }.lister-details .profile-grid { gap:16px 20px; }
+.lister-profile-fields .profile-field { font-weight:500; }.lister-profile-fields .profile-field input,.lister-profile-fields .profile-field textarea { font-weight:400; }
+.lister-profile-fields b { color:#b42318; }.lister-profile-fields .profile-field textarea::placeholder { color:#747b78; }
+.lister-logo-upload { margin-top:50px; }.lister-logo-upload>p { margin:0 0 8px; font-size:14px; line-height:21px; font-weight:500; }.lister-logo-upload>p>span { color:#747b78; font-weight:400; }
+.lister-logo-button { display:flex; align-items:center; gap:16px; width:100%; padding:14px 15px; background:white; border:1px solid #dedfdd; border-radius:8px; text-align:left; }
+.lister-logo-preview { display:grid; place-items:center; width:40px; height:40px; flex-shrink:0; background:#ecebf5; border-radius:8px; color:#000080; }
+.lister-logo-preview img { width:100%; height:100%; object-fit:contain; border-radius:8px; }
+.lister-logo-button>span:last-child { min-width:0; }.lister-logo-button strong { display:block; color:#000080; font-size:14px; line-height:21px; font-weight:600; overflow-wrap:anywhere; }
+.lister-logo-button small { display:block; margin-top:2px; color:#747b78; font-size:12px; line-height:18px; }
+.lister-bio { margin-top:50px; }.lister-bio textarea { height:108px; }.lister-bio .profile-bio-label small { font-weight:400; }
+.lister-profile-notice { display:flex; gap:12px; align-items:center; padding:16px; border-radius:8px; margin:50px 0 0; background:#ecebf5; color:#747b78; font-size:14px; line-height:20px; }
+.lister-profile-notice svg { flex-shrink:0; color:#121212; }
+.lister-submit { width:544px; margin-top:50px; }.lister-profile-fields .profile-skip { color:#121212; }
+.lister-profile-success { max-width:640px; margin:auto; padding:48px 24px; border-radius:20px; background:white; text-align:center; }
+.lister-profile-success h1 { margin:24px 0 16px; font-size:24px; font-weight:600; }.lister-profile-success p { margin-bottom:28px; }
+@media(max-width:760px) {
+ .lister-profile-page { padding:24px 16px; }.lister-profile-heading { padding:32px 20px; }.lister-heading-break { display:none; }
+ .lister-profile-fields { padding:32px 22px; }.lister-role-options { grid-template-columns:1fr; }.lister-role-card { min-height:120px; padding-right:44px; }
+ .lister-details,.lister-logo-upload,.lister-bio,.lister-profile-notice { margin-top:32px; }.lister-submit { margin-top:32px; }.lister-decoration { display:none; }
+}

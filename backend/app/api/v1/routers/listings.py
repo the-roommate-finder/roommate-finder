@@ -1,7 +1,8 @@
-from fastapi import Response, APIRouter, File, Query, Request, UploadFile, status
+from fastapi import Response, APIRouter, File, HTTPException, Query, Request, UploadFile, status
+from sqlalchemy import func, select
 
-from app.api.v1.dependencies import CurrentUser, ListingServiceDep
-from app.api.v1.models.models import GenderPreference, PropertyType
+from app.api.v1.dependencies import CurrentUser, DbDep, ListingServiceDep
+from app.api.v1.models.models import ConversationParticipant, GenderPreference, PropertyType, UserRole
 from app.api.v1.schemas.schemas import (
     ListingCreateRequest,
     ListingResponse,
@@ -102,6 +103,21 @@ async def get_my_listings(
     listing_service: ListingServiceDep,
 ) -> list[ListingResponse]:
     return await listing_service.get_my_listings(current_user)
+
+
+@router.get("/workspace-summary", summary="Lister conversation totals")
+async def workspace_summary(current_user: CurrentUser, db: DbDep, response: Response) -> dict[str, int]:
+    if current_user.role not in (UserRole.LISTER, UserRole.ADMIN):
+        raise HTTPException(status_code=403, detail="Only listers may access this workspace.")
+    response.headers["Cache-Control"] = "no-store"
+    total, unread = (await db.execute(select(
+        func.count(ConversationParticipant.id),
+        func.coalesce(func.sum(ConversationParticipant.unread_count), 0),
+    ).where(
+        ConversationParticipant.user_id == current_user.id,
+        ConversationParticipant.is_archived.is_(False),
+    ))).one()
+    return {"conversations": total, "unread_messages": unread}
 
 
 @router.get(

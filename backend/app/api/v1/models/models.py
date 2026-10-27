@@ -149,6 +149,8 @@ class User(Base):
     )
     date_of_birth: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     seeker_preferences: Mapped[Optional[dict]] = mapped_column(JSONB)
+    lister_profile: Mapped[Optional[dict]] = mapped_column(JSONB)
+    property_logo_url: Mapped[Optional[str]] = mapped_column(String(500))
     notification_preferences: Mapped[dict] = mapped_column(
         JSONB, default=dict, server_default=text("'{}'::jsonb"), nullable=False
     )

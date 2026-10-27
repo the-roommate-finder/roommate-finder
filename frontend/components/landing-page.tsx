@@ -6,6 +6,8 @@ import { Menu, X } from 'lucide-react';
 import { DesignIcon } from './design-icon';
 import { steps } from './landing-data';
 import { ListingFeed, type ListingFilters } from './listing-feed';
+import { LandingRoommates } from './landing-roommates';
+import { LandingAbout, LandingCta, LandingFaq, LandingPricing, LandingReviews, LandingSafety } from './landing-sections';
 
 
 export function LandingPage() {
@@ -16,19 +18,22 @@ export function LandingPage() {
   const [notice, setNotice] = useState({ title: '', message: '' });
   const dialog = useRef<HTMLDialogElement>(null);
   const results = useRef<HTMLElement>(null);
-  const [menuOpen, setMenuOpen] = useState(false);
   const header = useRef<HTMLElement>(null);
-  const menuToggle = useRef<HTMLButtonElement>(null);
+  const mobileMenu = useRef<HTMLDetailsElement>(null);
+  const menuToggle = useRef<HTMLElement>(null);
+
+  function closeMenu() {
+    if (mobileMenu.current) mobileMenu.current.open = false;
+  }
 
   useEffect(() => {
-    if (!menuOpen) return;
     const desktop = window.matchMedia('(min-width: 951px)');
-    const closeOnDesktop = () => { if (desktop.matches) setMenuOpen(false); };
+    const closeOnDesktop = () => { if (desktop.matches) closeMenu(); };
     const closeOutside = (event: PointerEvent) => {
-      if (event.target instanceof Node && !header.current?.contains(event.target)) setMenuOpen(false);
+      if (event.target instanceof Node && !header.current?.contains(event.target)) closeMenu();
     };
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') { setMenuOpen(false); menuToggle.current?.focus(); }
+      if (event.key === 'Escape' && mobileMenu.current?.open) { closeMenu(); menuToggle.current?.focus(); }
     };
     desktop.addEventListener('change', closeOnDesktop);
     document.addEventListener('pointerdown', closeOutside);
@@ -38,7 +43,7 @@ export function LandingPage() {
       document.removeEventListener('pointerdown', closeOutside);
       document.removeEventListener('keydown', closeOnEscape);
     };
-  }, [menuOpen]);
+  }, []);
 
   function showNotice(title: string, message: string) {
     setNotice({ title, message });
@@ -56,24 +61,27 @@ export function LandingPage() {
   }
 
   const navigation = <>
-    <a href="#browse" onClick={() => setMenuOpen(false)}>Browse</a>
-    <button onClick={() => { setMenuOpen(false); unavailable('About us'); }}>About us</button>
-    <a href="#how-it-works" onClick={() => setMenuOpen(false)}>How it Works</a>
+    <a href="#browse" onClick={closeMenu}>Browse</a>
+    <a href="#about" onClick={closeMenu}>About us</a>
+    <a href="#how-it-works" onClick={closeMenu}>How it Works</a>
+    <a href="#pricing" onClick={closeMenu}>Pricing</a>
   </>;
 
   return <div className="landing-page">
     <a className="skip-link" href="#main-content">Skip to content</a>
-    <header className="landing-header" ref={header} data-node-id="1226:11983" onBlur={event => { if (event.relatedTarget instanceof Node && !event.currentTarget.contains(event.relatedTarget)) setMenuOpen(false); }}>
+    <header className="landing-header" ref={header} data-node-id="1226:11983" onBlur={event => { if (event.relatedTarget instanceof Node && !event.currentTarget.contains(event.relatedTarget)) closeMenu(); }}>
       <Link href="/" className="landing-logo" aria-label="Roommate Finder home" data-asset-slot="header-logo" />
       <nav className="desktop-nav" aria-label="Main navigation">{navigation}</nav>
       <div className="landing-auth-links"><Link href="/login">Login</Link><Link href="/role-selection">Get Started</Link></div>
-      <button ref={menuToggle} className="mobile-menu-toggle" type="button" aria-label={menuOpen ? 'Close navigation menu' : 'Open navigation menu'} aria-expanded={menuOpen} aria-controls="mobile-navigation" onClick={() => setMenuOpen(open => !open)}>
-        {menuOpen ? <X size={26} aria-hidden="true" /> : <Menu size={26} aria-hidden="true" />}
-      </button>
-      <nav id="mobile-navigation" className="mobile-nav" aria-label="Mobile navigation" hidden={!menuOpen}>
+      <details className="mobile-menu" ref={mobileMenu}>
+        <summary ref={menuToggle} className="mobile-menu-toggle" aria-label="Toggle navigation menu" aria-controls="mobile-navigation">
+          <Menu className="menu-open-icon" size={26} aria-hidden="true" /><X className="menu-close-icon" size={26} aria-hidden="true" />
+        </summary>
+      <nav id="mobile-navigation" className="mobile-nav" aria-label="Mobile navigation">
         {navigation}
-        <div className="mobile-auth-links"><Link href="/login" onClick={() => setMenuOpen(false)}>Login</Link><Link href="/role-selection" onClick={() => setMenuOpen(false)}>Get Started</Link></div>
+        <div className="mobile-auth-links"><Link href="/login" onClick={closeMenu}>Login</Link><Link href="/role-selection" onClick={closeMenu}>Get Started</Link></div>
       </nav>
+      </details>
     </header>
 
     <main id="main-content">
@@ -85,21 +93,30 @@ export function LandingPage() {
         <form className="landing-search" onSubmit={searchListings} aria-label="Find a roommate or room" data-node-id="1311:1231">
           <label>WHERE ARE YOU LOOKING FROM?<span className="search-select"><input value={city} onChange={event => setCity(event.target.value)} aria-label="City" placeholder="Any city" maxLength={100} /></span></label>
           <label>SELECT AREA<span className="search-select"><input value={area} onChange={event => setArea(event.target.value)} aria-label="Area" placeholder="Any area" maxLength={100} /></span></label>
-          <label>WHAT ARE YOU LOOKING FOR?<span className="search-select"><select value={kind} onChange={event => setKind(event.target.value)} aria-label="Looking for"><option value="">All properties</option><option value="room">A Room</option><option value="shared">Shared space</option><option value="apartment">Apartment</option><option value="house">House</option><option value="studio">Studio</option></select><DesignIcon name="chevron-down" /></span></label>
+          <label>WHAT ARE YOU LOOKING FOR?<span className="search-select"><select value={kind} onChange={event => setKind(event.target.value)} aria-label="Looking for"><option value="">Rooms and roommates</option><option value="roommate">A Roommate</option><option value="room">A Room</option><option value="shared">Shared space</option><option value="apartment">Apartment</option><option value="house">House</option><option value="studio">Studio</option></select><DesignIcon name="chevron-down" /></span></label>
           <button type="submit">Search Now<DesignIcon name="search" /></button>
         </form>
       </section>
 
       <section id="browse" className="landing-listings" ref={results} aria-labelledby="browse-heading">
         <p className="listings-eyebrow" id="browse-heading">EXPLORE WHAT’S AVAILABLE</p>
-        {search && <div className="search-status" role="status"><p>Listings{search.area || search.city ? ` in ${[search.area, search.city].filter(Boolean).join(', ')}` : ' across Nigeria'}</p><button onClick={() => { setSearch(null); setCity(''); setArea(''); setKind(''); }}>Clear search</button></div>}
-        <ListingFeed key={JSON.stringify(search)} filters={search} />
+        {search && <div className="search-status" role="status"><p>{search.kind === 'roommate' ? 'Roommates' : 'Listings'}{search.area || search.city ? ` in ${[search.area, search.city].filter(Boolean).join(', ')}` : ' across Nigeria'}</p><button onClick={() => { setSearch(null); setCity(''); setArea(''); setKind(''); }}>Clear search</button></div>}
+        {(!search?.kind || search.kind === 'roommate') && <LandingRoommates key={`people-${JSON.stringify(search)}`} filters={search} />}
+        {search?.kind !== 'roommate' && <ListingFeed key={JSON.stringify(search)} filters={search} />}
       </section>
+
+      <LandingAbout />
 
       <section id="how-it-works" className="landing-steps" aria-labelledby="steps-heading" data-node-id="1226:11661">
         <div className="landing-section-heading"><p>Simplifying Shared Housing</p><h2 id="steps-heading">How Roommate Finder Works</h2></div>
         <ol className="landing-three-columns">{steps.map((step, index) => <li key={step.title}><span className="step-number">{index + 1}</span><div><h3>{step.title}</h3><p>{step.body}</p></div></li>)}</ol>
       </section>
+
+      <LandingSafety />
+      <LandingReviews />
+      <LandingPricing />
+      <LandingFaq />
+      <LandingCta />
 
     </main>
 
@@ -108,7 +125,7 @@ export function LandingPage() {
         <Link href="/" className="footer-brand-name"><span data-asset-slot="footer-logo" aria-hidden="true" />RoommateFinder</Link>
         <p>Making shared living work for Nigeria. Find verified students, NYSC members, and professionals to share spaces comfortably.</p>
         <div className="footer-avatars" aria-hidden="true">{[0, 1, 2].map(index => <span key={index} data-asset-slot="footer-avatar" />)}</div>
-      </div><div className="footer-links"><nav aria-label="Platform"><h2>Platform</h2><button onClick={() => unavailable('About us')}>About Us</button><a href="#how-it-works">How It Works</a><button onClick={() => unavailable('Safety Features')}>Safety Features</button></nav><nav aria-label="Support"><h2>Support</h2>{['Help Centre', 'Contact Us', 'Blog', 'Community Guidelines'].map(item => <button key={item} onClick={() => unavailable(item)}>{item}</button>)}</nav></div></div>
+      </div><div className="footer-links"><nav aria-label="Platform"><h2>Platform</h2><a href="#about">About Us</a><a href="#how-it-works">How It Works</a><a href="#safety">Safety Features</a></nav><nav aria-label="Support"><h2>Support</h2><a href="#faq">Help Centre</a><a href="mailto:roommatefinder01@gmail.com">Contact Us</a>{['Blog', 'Community Guidelines'].map(item => <button key={item} onClick={() => unavailable(item)}>{item}</button>)}</nav></div></div>
       <DesignIcon name="footer-divider" className="footer-divider" />
       <div className="footer-bottom"><p>© 2026 Roommate Finder. All rights reserved.</p><div>{['Terms of Service', 'Privacy Policy'].map(item => <button key={item} onClick={() => unavailable(item)}>{item}</button>)}</div></div>
     </footer>

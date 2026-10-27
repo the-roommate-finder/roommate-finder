@@ -70,6 +70,7 @@ export function EmailVerificationForm({ email }: { email: string }) {
       setDigits(Array(6).fill(''));
       if (result.ok) {
         if (result.user?.role === 'seeker') setContinueTo(result.user.is_profile_complete ? '/dashboard' : '/create-profile');
+        else if (result.user?.role === 'lister') setContinueTo('/create-profile');
         succeeded = true;
         setMotion('success');
         await motionDelay(700, signal, reducedMotion);

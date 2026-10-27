@@ -73,14 +73,26 @@ After refreshing tokens, fetch `/users/me` for the current onboarding status.
 
 Authenticated clients finish onboarding with
 `POST /api/v1/users/me/complete-profile`, submitting a nonblank `display_name`
-and optionally `bio` and `gender`. The endpoint saves the profile and sets
+and the fields required for the account role. The endpoint saves the profile and sets
 `is_profile_complete=true` atomically. Ordinary `PATCH /users/me` updates can
-save drafts without completing onboarding. Role-specific required fields can
-be added once the profile designs are defined. This flag guides frontend
+save drafts without completing onboarding. Listers must provide `phone_number` and
+`lister_profile` with `lister_type` (`property_owner`, `real_estate_agent`, or
+`property_manager`), nonblank `property_name`, and optional `cac_number`.
+Their optional bio is limited to 500 characters. This flag guides frontend
 navigation; it does not currently restrict access to other protected APIs.
 
 The profile-completion migration defaults existing and new users to false;
 existing profiles are not assumed to have completed this new onboarding step.
+
+Migration `0012_lister_profile` adds nullable `lister_profile` JSONB and
+`property_logo_url` columns without changing existing profile values or flags.
+`POST /users/me/property-logo` accepts a lister's PNG/JPG logo up to 5 MB; lister
+avatar uploads enforce the same size/type rules and verify the image bytes.
+Uploads use server-generated object keys and the configured object storage.
+Only the authenticated owner can upload or read these self-profile fields.
+Uploading either image does not mark onboarding complete. Provider failures
+return 503 and preserve the previous URL. Self-profile responses include the
+lister details and logo; entering a CAC/RCN number does not grant verified status.
 
 ### Running tests
 
@@ -266,3 +278,12 @@ The fingerprint includes IP and user agent, so a network change can trigger an a
 This preference does not suppress account-lockout emails. Google sign-ins appear in
 login activity; these new device alerts apply to the password sign-in flow.
 Checks: `tests/test_security_settings.py`, authentication and notification tests.
+
+### Lister workspace totals
+
+`GET /api/v1/listings/workspace-summary` is restricted to listers/admins and returns
+only the current user's non-archived conversation count and unread message sum.
+The frontend combines it with `GET /listings/me` for owned listings and lifetime
+views. Existing owner checks protect create/edit/pause/publish actions. Availability
+maps to Published/Paused; there is no draft state or per-property inquiry tracking.
+No additional database migration is required for this dashboard.

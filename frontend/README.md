@@ -22,10 +22,11 @@ The FastAPI backend should be running at `http://127.0.0.1:8000`.
 - `/login`: frame 1072:6592, login and password visibility.
 - `/reset-password?token=…`: set and confirm a new password using the emailed reset link; styled to match the existing auth screens.
 - `/dashboard`: authenticated seeker dashboard, implemented from the supplied screenshot.
-- `/create-profile`: seeker onboarding built from the supplied screenshot, with a reserved logo slot.
+- `/create-profile`: seeker or lister onboarding selected from the signed-in account role.
 - `/preview/room-card`: frame 1226:11520, reusable room card with explicit sample content.
-- `/`: landing page with navigation, live listing search/cards, how-it-works steps,
-  and footer. Sample roommate profiles, reviews, pricing and user counts were removed.
+- `/`: frame 143 landing page with live listings, authenticated roommate discovery,
+  About, communities, how-it-works, safety, reviews empty state, planned pricing,
+  FAQ, signup banner, and footer. No sample people, reviews, or user counts.
 
 Colours, fonts, dimensions and spacing come from `../design-reference/`.
 The saved Figma output is reference material, not application source. Its
@@ -47,8 +48,9 @@ amenity chips from frame `1226:11520`. Long titles, locations, owner names, and
 amenities are truncated on the card; View Details shows their full values.
 Missing/broken photos leave the reserved image area blank.
 
-`components/landing-data.ts` contains only explanatory copy. No production
-landing cards, reviews, profile records, user counts or pricing use sample data.
+`components/landing-data.ts` contains explanatory copy and the design's planned pricing.
+Premium plans are clearly marked as coming soon; no billing integration is claimed.
+No production landing cards, reviews, profile records, or user counts use sample data.
 The separate `/preview/room-card` route is still an explicitly labelled design
 preview; test fixtures and saved Figma references are not production data.
 
@@ -71,12 +73,16 @@ amenities, owner display name and primary uploaded image (then another image if
 no primary image exists). Rent uses the existing backend minor-unit contract:
 `30000000` kobo renders as `NGN300K/month`. View Details opens the selected
 listing's actual description, location, full amenities and availability date.
-Roommate browsing stays omitted because there is no public roommate-profile feed.
+Roommate cards use `/api/member/dashboard` for signed-in seekers, preserving backend
+visibility and block rules. Signed-out visitors see a sign-in prompt; restricted
+accounts see an account link. Roommate location searches use this same endpoint.
+View Profile opens the returned public details; Message opens dashboard messaging.
+No public profile endpoint was added and no private fields are exposed.
 
 The 1440px design is adapted to smaller screens with stacked grids and a mobile
 navigation menu. Desktop section styling follows the retrieved references;
-the full-page vertical layout is still incomplete because the sections below
-could not be retrieved. The full screenshot is saved in
+the missing sections were reconstructed from the owner's supplied frame 143 image,
+saved structure, and available detailed design references. The full screenshot is saved in
 `../design-reference/landing-reference.png` for comparison, never rendered in the app.
 
 ## API integration and current boundaries
@@ -92,14 +98,14 @@ and backend error messages. The brand logo remains a reserved space. A short-liv
 HttpOnly cookie remembers the pending email across refreshes; OTPs are not stored.
 Successful verification establishes the session and shows a confirmation with a
 link to `/create-profile` for seekers who have not completed their profile, `/dashboard`
-for completed seekers, or home for other accounts. Visiting without a pending registration email redirects to signup.
+for completed seekers, `/create-profile` for listers, or home for other accounts. Visiting without a pending registration email redirects to signup.
 `/forgot-password` requests the existing backend reset link. `/reset-password`
 reads its token, validates the new password and confirmation, then sends
 `token` and `new_password` to the backend. Missing, expired and used links offer
 a fresh reset email. Success clears stale session cookies and links to login;
 the backend revokes sessions. Reset pages use no-referrer and noindex metadata.
 Seeker login opens `/dashboard` for completed profiles and `/create-profile` otherwise.
-Lister dashboard/profile routing and automatic session refresh remain pending. Google login is explicitly unavailable in this
+Lister login opens profile setup (or editing for completed accounts); its dashboard and automatic session refresh remain pending. Google login is explicitly unavailable in this
 UI; its browser-to-backend-to-frontend callback integration is not yet implemented.
 The backend rate limiter currently sees this Next.js server's IP for these
 requests; deployment needs a trusted proxy/client-IP policy before production use.
@@ -161,16 +167,37 @@ tests mock storage delivery. When photo upload fails, form entries are retained
 and an explicit Save without photo action lets the user complete their profile;
 the UI never claims a failed photo was uploaded. Chat (`1325:9535`) still awaits its exact design.
 
-Figma access worked on October 8, 2026, then reached its Starter MCP quota during
-the landing-page reads. The following landing sections are omitted pending their
-full design context: repeated verification strip (`1226:11379`), About
-(`1226:11608`), communities (`1226:11635`), safety (`1226:11686`), FAQ
-(`1226:11904`), and closing CTA (`1226:11939`). Room cards reuse the previously
-retrieved component (`1226:11520`); the full room-grid context (`1226:11519`)
-could not be retrieved. Available references and the structure are saved under
-`../design-reference/landing-*` so they do not need to be fetched again.
+On October 14, Figma returned the frame 143 screenshot and closing CTA context,
+then its Starter MCP quota blocked the remaining detailed section reads. Exact
+Figma spacing for About, communities, safety, and FAQ
+still needs a comparison when access returns. These sections are implemented from
+the supplied screenshot and saved measurements. Decorative photographs, logos,
+and unavailable safety icons remain reserved. Room cards reuse frame `1226:11520`.
+Reviews show an honest empty state until the review feature exists. Available
+references and structure are saved under `../design-reference/landing-*`.
+The repeated Verified ID / Verified Agent strips were removed at the owner's request.
 
-Lister profile setup/dashboard, the exact messages design and settings remain pending. These missing sections/screens are not claimed as matched.
+Lister accounts use the dedicated green-and-white dashboard at `/dashboard`.
+
+### Lister profile setup
+
+`/create-profile` displays the supplied lister design for lister accounts. Login and
+email confirmation lead there; existing listers can edit via `/create-profile?edit=1`.
+Owner, agent, and manager choices, full name, phone number, property name, optional
+CAC/RCN number, and the 500-character bio persist through `users/me/complete-profile`.
+This requires migration `0012_lister_profile` (applied automatically by Compose).
+
+The profile photo uses `users/me/avatar`; the optional property logo uses
+`users/me/property-logo`. Both accept PNG/JPG up to 5 MB, preview selections, and use
+the configured backend object storage. Failed uploads preserve form values and offer
+an explicit “Save without pending uploads” action. Successfully uploaded files are
+not uploaded again on retry. Backend tests mock storage; real delivery still depends
+on working S3 credentials. The decorative watermark remains an asset slot.
+
+Successful saves show a confirmation with an edit action and dashboard link.
+Skip opens the lister dashboard without marking the profile complete. The seeker form and its dashboard destination remain unchanged.
+Checks: `tests/lister-profile.spec.ts`, `tests/seeker-profile.spec.ts`,
+`tests/member-route.test.cjs`, and backend `tests/test_lister_profile.py`.
 Only the standalone design preview uses sample listing content.
 
 ## Checks
@@ -370,3 +397,35 @@ Profile → Help & Support and View Help Center both open
 email and phone links use the contact details supplied in the design reference.
 The page shares the dashboard header, navigation and mobile layout. Help content lives
 in `components/help-support.tsx` and reflects the currently available app features.
+
+### Login layout
+
+`/login` uses equal-width desktop panels: a full-height decorative photo area on the
+left and a centered form on the right, retaining its white rounded card and soft shadow.
+At widths of 760px or less,
+only the form is shown. Short screens scroll at page level.
+The left panel displays `public/auth_img.jpg`, centered and cropped to cover the panel.
+Replace that file or override `--login-background-image` on `.login-image-panel`
+in `app/globals.css` to change the photo. Other authentication screens retain their current layout.
+
+### Lister workspace
+
+`/dashboard` chooses the seeker or lister workspace from the authenticated account.
+Completed lister logins open the dashboard; incomplete accounts go to profile setup.
+The lister layout follows the supplied white/green reference with a sticky header,
+mobile navigation, portfolio totals, owned-listing table, inbox links and listing tip.
+Search, property/status filters, sorting, selection, pause/publish, and create/edit
+forms use authenticated `/listings` endpoints. Prices are entered in naira per month
+and sent in kobo. Photos use existing listing images or reserved placeholders.
+Settings and messaging retain the lister shell and reuse the existing account/chat controls.
+
+Analytics currently shows lifetime listing views. The backend has no draft state,
+per-listing inquiry association, or historical growth metrics; drafts are disabled
+and unavailable inquiry counts show a dash. The fourth statistic is actual active
+conversations, with private unread totals from `GET listings/workspace-summary`.
+Conversation previews open the existing encrypted inbox rather than displaying ciphertext.
+No example properties, people, or metrics are inserted into production.
+
+Checks: `tests/lister-dashboard.spec.ts`, `tests/member-route.test.cjs`, and backend
+`tests/test_lister_dashboard.py`. Use `PLAYWRIGHT_BASE_URL=http://localhost:3000`
+with the development server so Next permits the browser's development origin.

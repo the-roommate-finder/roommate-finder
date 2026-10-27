@@ -159,3 +159,71 @@ button:disabled { cursor:wait; opacity:.65; }
 }
 @media(prefers-reduced-motion:reduce) { .otp-motion-spinner,.otp-motion-symbol,.otp-result-enter,.otp-code[data-motion="error"] .otp-motion-result { animation:none; } }
 @media(prefers-reduced-motion:reduce) { * { transition:none!important; } }
+
+/* Login photo is served from public/auth_img.jpg. */
+.auth-page.login-split-layout {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: stretch;
+  min-height: 100dvh;
+  padding: 0;
+  background: var(--canvas);
+}
+.login-form-panel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  padding: 32px clamp(16px, 3vw, 48px);
+}
+.login-split-layout .login-card {
+  width: 537px;
+  max-width: 100%;
+}
+.login-image-panel {
+  position: sticky;
+  top: 0;
+  height: 100dvh;
+  isolation: isolate;
+  overflow: hidden;
+  background-color: var(--canvas);
+  background-image: var(--login-background-image, url('/auth_img.jpg'));
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
+}
+.login-image-panel > .logo-slot {
+  position: absolute;
+  top: clamp(24px, 4vh, 48px);
+  left: clamp(24px, 3.3vw, 64px);
+  margin: 0;
+}
+.login-image-panel::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(to bottom, rgb(0 0 0 / 28%) 45%, rgb(0 0 0 / 65%));
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+  pointer-events: none;
+}
+.login-image-welcome {
+  position: absolute;
+  inset-inline: clamp(24px, 3.3vw, 64px);
+  bottom: clamp(32px, 7vh, 72px);
+  margin: 0;
+  max-width: 520px;
+  color: #fff;
+  font-size: clamp(18px, 1.6vw, 26px);
+  line-height: 1.5;
+  text-shadow: 0 2px 8px rgb(0 0 0 / 25%);
+}
+.login-image-welcome strong,
+.login-image-welcome span { display: block; }
+.login-image-welcome strong { margin-bottom: 8px; font-weight: 700; }
+@media (max-width: 760px) {
+  .auth-page.login-split-layout { grid-template-columns: minmax(0, 1fr); }
+  .login-form-panel { padding: 24px 16px; }
+  .login-image-panel { display: none; }
+}

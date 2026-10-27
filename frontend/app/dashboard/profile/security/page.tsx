@@ -1,12 +1,13 @@
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { SeekerDashboard } from '../../../../components/seeker-dashboard';
+import { DashboardEntry } from '../../../../components/dashboard-entry';
 import '../../dashboard.css';
+import '../../lister.css';
 import '../notifications/notifications.css';
 import './security.css';
 
 export const metadata = { title: 'Security | Roommate Finder', robots: { index: false, follow: false } };
 export default async function SecurityPage() {
   if (!(await cookies()).get('rmf_access')?.value) redirect('/login');
-  return <SeekerDashboard initialView="profile" profileSettings="security" />;
+  return <DashboardEntry initialView="profile" profileSettings="security" />;
 }

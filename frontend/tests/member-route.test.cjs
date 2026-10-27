@@ -27,6 +27,28 @@ function request(path, method = 'GET', body, headers = {}) {
 function context(path) { return { params: Promise.resolve({ path: path.split('?')[0].split('/') }) }; }
 function noUpstream() { throw new Error('Unexpected backend call'); }
 
+test('lister details and logo uploads use the authenticated backend routes', async () => {
+  const path = 'users/me/complete-profile';
+  const payload = { display_name: 'Lister', phone_number: '+2348030000000', lister_profile: { lister_type: 'property_owner', property_name: 'Test Properties', cac_number: null } };
+  const response = await handlers(async (url, options) => {
+    assert.equal(options.headers.Authorization, 'Bearer private-access');
+    assert.deepEqual(JSON.parse(options.body), payload);
+    return Response.json({ is_profile_complete: true });
+  }).POST(request(path, 'POST', payload), context(path));
+  assert.equal(response.status, 200);
+  assert.equal((await handlers(noUpstream).POST(request(path, 'POST', { ...payload, property_logo_url: 'https://untrusted.example' }), context(path))).status, 400);
+  const logoPath = 'users/me/property-logo';
+  const form = new FormData(); form.set('file', new Blob(['image-data'], { type: 'image/png' }), 'logo.png');
+  const req = new NextRequest(`https://roommate.example/api/member/${logoPath}`, { method: 'POST', body: form, headers: { origin: 'https://roommate.example', cookie: 'rmf_access=private-access' } });
+  const uploaded = await handlers(async (url, options) => {
+    assert.equal(url.endsWith(logoPath), true);
+    assert.equal(options.headers.Authorization, 'Bearer private-access');
+    assert.equal(options.body.get('file').type, 'image/png');
+    return Response.json({ property_logo_url: 'https://cdn.example/logo.png' });
+  }).POST(req, context(logoPath));
+  assert.equal(uploaded.status, 200);
+});
+
 test('photo storage failures are actionable without exposing provider errors', async () => {
   for (const upstream of [
     async () => Response.json({ detail: 'Private storage credentials error' }, { status: 503 }),
@@ -303,4 +325,23 @@ test('security changes are scoped and successful password changes clear cookies'
   assert.match(success.headers.get('set-cookie'), /rmf_refresh=;/);
   const failure = await handlers(async () => Response.json({ detail: 'Incorrect password' }, { status: 400 })).POST(request(change, 'POST', payload), context(change));
   assert.equal(failure.headers.get('set-cookie'), null);
+});
+
+test('lister listing routes forward allowed fields and reject ownership overrides', async () => {
+  const path = `listings/${id}`;
+  const payload = { title: 'A studio apartment', monthly_rent: 8500000, is_available: false };
+  const response = await handlers(async (url, options) => {
+    assert.equal(url, `http://127.0.0.1:8000/api/v1/${path}`);
+    assert.equal(options.headers.Authorization, 'Bearer private-access');
+    assert.deepEqual(JSON.parse(options.body), payload);
+    return Response.json({ id, ...payload });
+  }).PATCH(request(path, 'PATCH', payload), context(path));
+  assert.equal(response.status, 200);
+  assert.equal((await handlers(noUpstream).PATCH(request(path, 'PATCH', { ...payload, owner_id: 'RMF-111111' }), context(path))).status, 400);
+  assert.equal((await handlers(noUpstream).POST(request('listings', 'POST', { ...payload }), context('listings'))).status, 400);
+  assert.equal((await handlers(noUpstream).DELETE(request(path, 'DELETE'), context(path))).status, 405);
+  for (const ownPath of ['listings/me', 'listings/workspace-summary']) {
+    assert.equal((await handlers(async () => Response.json({})).GET(request(ownPath), context(ownPath))).status, 200);
+    assert.equal((await handlers(noUpstream).GET(request(`${ownPath}?owner_id=RMF-111111`), context(ownPath))).status, 400);
+  }
 });

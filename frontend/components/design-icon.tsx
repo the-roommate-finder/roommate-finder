@@ -2,7 +2,7 @@
 // Preserve the SVG's intrinsic dimensions; the wrapper provides its design slot.
 const sizes = {
   'chevron-down': [14, 14], search: [16, 16], location: [11.4998, 13.5002],
-  calendar: [16, 16], quote: [29, 29], tick: [24, 24],
+  calendar: [16, 16], quote: [29, 29], tick: [24, 24], 'arrow-right': [16, 16],
   'roommate-divider': [369, 1], 'pricing-divider': [382, 1], 'footer-divider': [1280, 1],
 } as const;
 

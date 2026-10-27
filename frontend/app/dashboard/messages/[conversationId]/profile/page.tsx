@@ -1,7 +1,8 @@
 import { cookies } from 'next/headers';
 import { notFound, redirect } from 'next/navigation';
-import { SeekerDashboard } from '../../../../../components/seeker-dashboard';
+import { DashboardEntry } from '../../../../../components/dashboard-entry';
 import '../../../dashboard.css';
+import '../../../lister.css';
 import '../../messages.css';
 import './profile.css';
 
@@ -11,5 +12,5 @@ export default async function ChatProfilePage({ params }: { params: Promise<{ co
   if (!(await cookies()).get('rmf_access')?.value) redirect('/login');
   const { conversationId } = await params;
   if (!/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(conversationId)) notFound();
-  return <SeekerDashboard initialView="messages" profileConversation={conversationId} />;
+  return <DashboardEntry initialView="messages" profileConversation={conversationId} />;
 }

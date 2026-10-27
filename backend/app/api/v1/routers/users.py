@@ -1,4 +1,7 @@
 from datetime import datetime, timezone
+from io import BytesIO
+from uuid import uuid4
+from PIL import Image, UnidentifiedImageError
 from fastapi import APIRouter, HTTPException, UploadFile, Response, status
 from pydantic import BaseModel, ConfigDict, StrictBool, EmailStr, Field, field_validator
 from sqlalchemy import select, func, update
@@ -41,6 +44,20 @@ from app.api.v1.schemas.schemas import NotificationPreferences
 from user_agents import parse as parse_user_agent
 
 router = APIRouter(prefix="/users", tags=["Users"])
+
+
+def validate_lister_image(contents: bytes, content_type: str) -> None:
+    if content_type not in ("image/png", "image/jpeg"):
+        raise HTTPException(415, "Choose a PNG or JPG image.")
+    if not contents or len(contents) > 5 * 1024 * 1024:
+        raise HTTPException(413, "Image must be between 1 byte and 5 MB.")
+    try:
+        with Image.open(BytesIO(contents)) as image:
+            if image.format != ("PNG" if content_type == "image/png" else "JPEG"):
+                raise ValueError("Incorrect image format")
+            image.verify()
+    except (UnidentifiedImageError, OSError, ValueError, SyntaxError, Image.DecompressionBombError):
+        raise HTTPException(415, "Choose a valid PNG or JPG image.")
 
 
 class VisibilityRequest(BaseModel):
@@ -212,6 +229,10 @@ async def complete_profile(
 ) -> UserSelfResponse:
     if body.seeker_preferences is not None and current_user.role != UserRole.SEEKER:
         raise HTTPException(status_code=403, detail="This form is for seeker accounts.")
+    if body.lister_profile is not None and current_user.role != UserRole.LISTER:
+        raise HTTPException(status_code=403, detail="This form is for lister accounts.")
+    if current_user.role == UserRole.LISTER and body.lister_profile is None:
+        raise HTTPException(status_code=422, detail="Lister type and property details are required.")
     updates = body.model_dump(exclude_unset=True, exclude_none=True)
     if body.phone_number and body.phone_number != current_user.phone_number:
         updates["is_phone_verified"] = False
@@ -242,7 +263,10 @@ async def upload_avatar(
             detail="Unsupported image type.",
         )
 
-    contents = await file.read()
+    limit = min(settings.max_upload_size_bytes, 5 * 1024 * 1024) if current_user.role == UserRole.LISTER else settings.max_upload_size_bytes
+    contents = await file.read(limit + 1)
+    if current_user.role == UserRole.LISTER:
+        validate_lister_image(contents, content_type)
     if len(contents) > settings.max_upload_size_bytes:
         raise HTTPException(
             status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
@@ -252,6 +276,9 @@ async def upload_avatar(
     try:
         storage = StorageClient()
         key = f"avatars/{current_user.id}/{file.filename}"
+        if current_user.role == UserRole.LISTER:
+            extension = "png" if content_type == "image/png" else "jpg"
+            key = f"avatars/{current_user.id}/{uuid4().hex}.{extension}"
         cdn_url = await storage.upload(key=key, data=contents, content_type=content_type)
     except (BotoCoreError, ClientError) as exc:
         code = exc.response.get("Error", {}).get("Code", "unknown") if isinstance(exc, ClientError) else type(exc).__name__
@@ -264,6 +291,26 @@ async def upload_avatar(
     user_repo = UserRepository(db)
     updated = await user_repo.update(current_user, avatar_url=cdn_url)
     return UserPublicResponse.model_validate(updated)
+
+
+@router.post("/me/property-logo", response_model=UserSelfResponse)
+async def upload_property_logo(file: UploadFile, current_user: CurrentUser, db: DbDep) -> UserSelfResponse:
+    if current_user.role != UserRole.LISTER:
+        raise HTTPException(403, "Only lister accounts can upload a property logo.")
+    content_type = file.content_type or ""
+    if content_type not in ("image/png", "image/jpeg"):
+        raise HTTPException(415, "Choose a PNG or JPG logo.")
+    contents = await file.read(5 * 1024 * 1024 + 1)
+    validate_lister_image(contents, content_type)
+    extension = "png" if content_type == "image/png" else "jpg"
+    try:
+        cdn_url = await StorageClient().upload(key=f"property-logos/{current_user.id}/{uuid4().hex}.{extension}",
+                                              data=contents, content_type=content_type)
+    except (BotoCoreError, ClientError) as exc:
+        structlog.get_logger(__name__).warning("property_logo_upload_unavailable")
+        raise HTTPException(503, "Logo upload is unavailable. Please try again later.") from exc
+    updated = await UserRepository(db).update(current_user, property_logo_url=cdn_url)
+    return UserSelfResponse.model_validate(updated)
 
 
 @router.delete(

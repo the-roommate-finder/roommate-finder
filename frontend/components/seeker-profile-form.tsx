@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Camera } from 'lucide-react';
 import { LogoSlot } from './auth-shell';
+import { ListerProfileForm, type ListerProfile } from './lister-profile-form';
 
 const habits = [
   { key: 'sleep_schedule', label: 'Sleep Schedule', choices: [['early_bird', 'Early Bird'], ['night_owl', 'Night Owl'], ['flexible', 'Flexible']] },
@@ -16,7 +17,7 @@ const habits = [
 ] as const;
 type HabitKey = typeof habits[number]['key'];
 type Preferences = Record<HabitKey, string | null> & { occupation: string; budget_min: number; budget_max: number; preferred_location: string; move_in_timeline: string };
-type Profile = { role: string; display_name?: string; bio?: string; gender?: 'male' | 'female' | null; phone_number?: string; date_of_birth?: string; avatar_url?: string; seeker_preferences?: Preferences };
+type Profile = ListerProfile & { role: string; gender?: 'male' | 'female' | null; date_of_birth?: string; seeker_preferences?: Preferences };
 const defaults: Record<HabitKey, string> = { sleep_schedule: '', cleanliness: '', noise_level: '', guests: '', smoking: '', pets: '' };
 
 async function memberRequest(path: string, init?: RequestInit) {
@@ -47,7 +48,7 @@ export function SeekerProfileForm({ editing = false }: { editing?: boolean }) {
     const controller = new AbortController();
     memberRequest('', { signal: AbortSignal.any([controller.signal, AbortSignal.timeout(20000)]) }).then(data => {
       if (controller.signal.aborted) return;
-      if (data.role !== 'seeker') throw new Error('This form is for seeker accounts.');
+      if (!['seeker', 'lister'].includes(data.role)) throw new Error('Profile setup is available to seeker and lister accounts.');
       const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
       setMaxDate(`${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`);
       setProfile(data); setBio(data.bio?.slice(0, 200) || '');
@@ -122,6 +123,7 @@ export function SeekerProfileForm({ editing = false }: { editing?: boolean }) {
   }
 
   const preferences = profile?.seeker_preferences;
+  if (profile?.role === 'lister') return <ListerProfileForm initialProfile={profile} editing={editing} />;
   return <main className="profile-page"><section className="profile-card" aria-labelledby="profile-title">
     <header className="profile-heading"><LogoSlot /><h1 id="profile-title">{editing ? 'Edit Your Profile' : 'Create Your Profile'}</h1>
       <p>Tell us about yourself so we can find your ideal roommate match</p></header>

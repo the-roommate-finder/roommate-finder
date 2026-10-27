@@ -7,7 +7,11 @@ type Endpoint = {
 
 const uuid = '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}';
 const conversation = `chat/conversations/${uuid}`;
+const listingFields = ['title', 'description', 'property_type', 'address', 'city', 'state', 'country', 'monthly_rent', 'security_deposit', 'utilities_included', 'gender_preference', 'max_occupants', 'available_from', 'amenities'];
 const endpoints: Endpoint[] = [
+  { path: /^listings\/(me|workspace-summary)$/, methods: { GET: {} } },
+  { path: /^listings$/, methods: { POST: { fields: listingFields } } },
+  { path: new RegExp(`^listings/${uuid}$`), methods: { PATCH: { fields: [...listingFields, 'is_available'] } } },
   { path: /^dashboard$/, methods: { GET: { query: ['city', 'area', 'room_page', 'roommate_page', 'page_size', 'mode', 'location', 'min_rent', 'max_rent', 'property_type', 'amenities', 'available_by', 'min_budget', 'max_budget', 'sleep_schedule', 'cleanliness', 'move_in_timeline', 'saved_sort'] } } },
   { path: new RegExp(`^dashboard/saved/(room/${uuid}|roommate/RMF-[0-9]{6})$`), methods: { PUT: {}, DELETE: {} } },
   { path: /^dashboard\/searches$/, methods: { POST: { fields: ['city', 'area', 'kind'] } } },
@@ -26,9 +30,10 @@ const endpoints: Endpoint[] = [
   { path: /^users\/me\/privacy$/, methods: { GET: {}, PUT: { fields: ['profile_audience', 'show_age', 'show_occupation', 'show_lifestyle', 'show_about_me', 'show_recently_active', 'show_profile_activity'] } } },
   { path: /^chat\/block\/RMF-[0-9]{6}$/, methods: { DELETE: {} } },
   { path: /^users\/me\/complete-profile$/, methods: {
-    POST: { fields: ['display_name', 'bio', 'gender', 'phone_number', 'date_of_birth', 'seeker_preferences'] },
+    POST: { fields: ['display_name', 'bio', 'gender', 'phone_number', 'date_of_birth', 'seeker_preferences', 'lister_profile'] },
   } },
   { path: /^users\/me\/avatar$/, methods: { POST: { upload: true } } },
+  { path: /^users\/me\/property-logo$/, methods: { POST: { upload: true } } },
   { path: /^chat\/conversations$/, methods: {
     GET: { query: ['include_archived', 'page', 'page_size'] },
     POST: { fields: ['participant_id'] },
