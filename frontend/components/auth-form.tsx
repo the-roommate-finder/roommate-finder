@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Eye, EyeOff } from 'lucide-react';
 import { AuthShell } from './auth-shell';
 import { PasswordStrength } from './password-strength';
+import { adultBirthDateLimit, birthDateError } from './age-validation';
 
 export function AuthForm({ mode, role = 'seeker' }: { mode: 'signup' | 'login'; role?: 'seeker' | 'lister' }) {
   const signup = mode === 'signup';
@@ -15,6 +16,7 @@ export function AuthForm({ mode, role = 'seeker' }: { mode: 'signup' | 'login'; 
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [password, setPassword] = useState('');
+  const [maxBirthDate] = useState(() => adultBirthDateLimit());
   async function request(action: string, body: Record<string, unknown>) {
     const response = await fetch(`/api/auth/${action}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const data = await response.json();
@@ -24,13 +26,17 @@ export function AuthForm({ mode, role = 'seeker' }: { mode: 'signup' | 'login'; 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault(); setError(''); setNotice('');
     const data = new FormData(event.currentTarget);
+    if (signup) {
+      const ageError = birthDateError(String(data.get('date_of_birth') || ''));
+      if (ageError) { setError(ageError); return; }
+    }
     if (signup && data.get('password') !== data.get('confirm')) { setError('Your passwords must match.'); return; }
     // Special characters are ASCII punctuation, including underscores, not spaces.
     if (signup && !/^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[!-/:-@\[-`{-~]).{6,50}(?![\s\S])/.test(String(data.get('password')))) { setError('Use 6–50 characters with an uppercase letter, a lowercase letter, a number, and a special character.'); return; }
     setBusy(true);
     try {
       const address = String(data.get('email')).trim().toLowerCase();
-      const body = { email: address, password: String(data.get('password')), ...(signup ? { display_name: String(data.get('name')).trim(), role } : {}) };
+      const body = { email: address, password: String(data.get('password')), ...(signup ? { display_name: String(data.get('name')).trim(), date_of_birth: String(data.get('date_of_birth')), role } : {}) };
       const result = await request(signup ? 'register' : 'login', body);
       if (signup) { router.push('/verify-email'); }
       else if (result.user?.role === 'seeker') { router.push(result.user.is_profile_complete ? '/dashboard' : '/create-profile'); router.refresh(); }
@@ -43,6 +49,7 @@ export function AuthForm({ mode, role = 'seeker' }: { mode: 'signup' | 'login'; 
     <form className="credentials-form" onSubmit={submit}>
       {signup && <label className="field">Full Name<input name="name" autoComplete="name" placeholder="Dan Jimoh" required maxLength={100} /></label>}
       <label className="field">Email<input name="email" type="email" autoComplete="email" placeholder="olivia@untitledui.com" required /></label>
+      {signup && <label className="field">Date of Birth<input name="date_of_birth" aria-label="Date of Birth" type="date" autoComplete="bday" required max={maxBirthDate} aria-describedby="signup-age-note" onChange={event => event.target.setCustomValidity(birthDateError(event.target.value) || '')} /><small id="signup-age-note">You must be 18 or older to create an account.</small></label>}
       <label className={`field ${signup ? '' : 'login-password'}`}>Password<span className="password-wrap"><input name="password" type={visible ? 'text' : 'password'} autoComplete={signup ? 'new-password' : 'current-password'} placeholder={signup ? 'minimum of 6 characters' : '********'} required minLength={signup ? 6 : 1} maxLength={signup ? 50 : undefined} onChange={signup ? event => setPassword(event.target.value) : undefined} aria-describedby={signup ? 'password-strength' : undefined} />
         <button type="button" aria-label={visible ? 'Hide password' : 'Show password'} aria-pressed={visible} onClick={() => setVisible(!visible)}>{visible ? <EyeOff size={20} /> : <Eye size={20} />}</button>
       </span></label>

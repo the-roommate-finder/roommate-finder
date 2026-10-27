@@ -25,6 +25,7 @@ from app.api.v1.schemas.schemas import (
     SocialLoginResponse,
 )
 from app.api.v1.services.google_auth_service import OAUTH_COOKIE_PATH, OAUTH_STATE_COOKIE
+from app.utils.age import AdultBirthDate
 
 router = APIRouter(prefix="/auth/google", tags=["Google OAuth"])
 
@@ -42,8 +43,9 @@ router = APIRouter(prefix="/auth/google", tags=["Google OAuth"])
 async def get_google_auth_url(
     response: Response,
     google_service: GoogleAuthServiceDep,
+    date_of_birth: AdultBirthDate | None = None,
 ) -> GoogleAuthURLResponse:
-    auth_url = await google_service.get_auth_url(response)
+    auth_url = await google_service.get_auth_url(response, date_of_birth=date_of_birth)
     return GoogleAuthURLResponse(auth_url=auth_url)
 
 
@@ -55,9 +57,10 @@ async def get_google_auth_url(
 )
 async def redirect_to_google(
     google_service: GoogleAuthServiceDep,
+    date_of_birth: AdultBirthDate | None = None,
 ) -> RedirectResponse:
     response = RedirectResponse(url="/", status_code=status.HTTP_302_FOUND)
-    response.headers["location"] = await google_service.get_auth_url(response)
+    response.headers["location"] = await google_service.get_auth_url(response, date_of_birth=date_of_birth)
     return response
 
 

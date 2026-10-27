@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import Link from 'next/link';
+import { adultBirthDateLimit } from './age-validation';
 import { useRouter } from 'next/navigation';
 import { Camera } from 'lucide-react';
 import { LogoSlot } from './auth-shell';
@@ -49,8 +50,7 @@ export function SeekerProfileForm({ editing = false }: { editing?: boolean }) {
     memberRequest('', { signal: AbortSignal.any([controller.signal, AbortSignal.timeout(20000)]) }).then(data => {
       if (controller.signal.aborted) return;
       if (!['seeker', 'lister'].includes(data.role)) throw new Error('Profile setup is available to seeker and lister accounts.');
-      const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
-      setMaxDate(`${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`);
+      setMaxDate(adultBirthDateLimit());
       setProfile(data); setBio(data.bio?.slice(0, 200) || '');
       if (data.seeker_preferences) setChoices(Object.fromEntries(habits.map(habit => [habit.key, data.seeker_preferences![habit.key] ?? ''])) as Record<HabitKey, string>);
     }).catch(error => { if (!controller.signal.aborted) setError(error.message); })

@@ -26,6 +26,7 @@ from app.api.v1.models.models import (
     UserGender,
     UserRole,
 )
+from app.utils.age import AdultBirthDate, validate_adult_birth_date
 
 T = TypeVar("T")
 
@@ -61,6 +62,7 @@ _PASSWORD_PATTERN = re.compile(
 
 class RegisterRequest(BaseModel):
     email: EmailStr
+    date_of_birth: AdultBirthDate
     password: str = Field(min_length=6, max_length=50)
     display_name: Optional[str] = Field(default=None, max_length=100)
     phone_number: Optional[str] = Field(default=None, max_length=20)
@@ -362,8 +364,7 @@ class CompleteProfileRequest(BaseModel):
             if self.bio and len(self.bio) > 500:
                 raise ValueError("About you must be at most 500 characters.")
         if self.date_of_birth:
-            if self.date_of_birth.date() >= datetime.now(timezone.utc).date():
-                raise ValueError("Date of birth must be in the past.")
+            validate_adult_birth_date(self.date_of_birth.date())
             if self.date_of_birth.tzinfo is None:
                 self.date_of_birth = self.date_of_birth.replace(tzinfo=timezone.utc)
         if self.seeker_preferences is not None:

@@ -287,3 +287,20 @@ The frontend combines it with `GET /listings/me` for owned listings and lifetime
 views. Existing owner checks protect create/edit/pause/publish actions. Availability
 maps to Published/Paused; there is no draft state or per-property inquiry tracking.
 No additional database migration is required for this dashboard.
+
+### Registration age requirement
+
+`POST /api/v1/auth/register` requires `date_of_birth` (YYYY-MM-DD) for both seeker
+and lister accounts. The API rejects missing, invalid, future, and under-18 dates
+with 422 before creating a user or sending an OTP. Age is calculated using UTC
+calendar dates; the 18th birthday is accepted. February 29 birthdays reach the
+next age on March 1 in non-leap years. The existing birthday column is reused,
+so no migration is needed. Profile updates cannot set an under-18 birthday.
+
+For new Google accounts, include `date_of_birth` when initiating
+`GET /auth/google` or `/auth/google/redirect`. The validated birthday is stored
+with the short-lived, browser-bound OAuth state and is not sent to Google.
+Either callback rejects new account creation if the birthday was omitted.
+Existing Google accounts can still sign in without resubmitting it.
+This is a check of the supplied birthday, not independent identity verification.
+Existing accounts are not retrospectively disabled by this registration change.

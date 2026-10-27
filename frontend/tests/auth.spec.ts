@@ -11,6 +11,7 @@ test('role selection preserves the selected role on signup', async ({ page }) =>
 test('signup validates confirmation then submits the role and shows verification', async ({ page }) => {
   await page.goto('/signup?role=lister');
   await page.getByLabel('Full Name').fill('Test Person');
+  await page.getByLabel('Date of Birth', { exact: true }).fill('2000-01-01');
   await page.getByLabel('Email', { exact: true }).fill('test@example.com');
   await page.getByLabel('Password', { exact: true }).fill('Password123!');
   await page.getByLabel('Confirm Password', { exact: true }).fill('Different123!');
@@ -23,7 +24,7 @@ test('signup validates confirmation then submits the role and shows verification
   await page.getByLabel('Password', { exact: true }).fill('Abc1!x');
   await page.getByLabel('Confirm Password', { exact: true }).fill('Abc1!x');
   await page.route('**/api/auth/register', async route => {
-    expect(route.request().postDataJSON()).toEqual({ email: 'test@example.com', password: 'Abc1!x', display_name: 'Test Person', role: 'lister' });
+    expect(route.request().postDataJSON()).toEqual({ email: 'test@example.com', password: 'Abc1!x', display_name: 'Test Person', date_of_birth: '2000-01-01', role: 'lister' });
     await route.fulfill({ status: 201, headers: { 'Set-Cookie': 'rmf_verification_email=test@example.com; Path=/; HttpOnly; SameSite=Lax' }, json: { id: 'test', email: 'test@example.com' } });
   });
   await page.getByRole('button', { name: 'Create account', exact: true }).click();

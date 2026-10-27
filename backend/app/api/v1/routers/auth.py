@@ -39,6 +39,7 @@ async def register(
     return await auth_service.register(
         email=body.email,
         password=body.password,
+        date_of_birth=body.date_of_birth,
         display_name=body.display_name,
         phone_number=body.phone_number,
         role=body.role,

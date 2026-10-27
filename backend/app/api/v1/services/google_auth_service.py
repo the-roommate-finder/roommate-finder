@@ -14,7 +14,7 @@ No password is stored for social-login users.
 from __future__ import annotations
 
 import secrets
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from typing import Optional
 from urllib.parse import urlencode
 
@@ -33,6 +33,7 @@ from app.api.v1.repositories.user_repository import (
 )
 from app.api.v1.schemas.schemas import SocialLoginResponse, UserPublicResponse
 from app.core.config import settings
+from app.utils.age import is_adult
 from app.core.security import (
     create_access_token,
     generate_refresh_token,
@@ -67,7 +68,7 @@ class GoogleAuthService:
         self._redis = redis
 
     # Step 1: Generate Auth URL
-    async def get_auth_url(self, response: Response) -> str:
+    async def get_auth_url(self, response: Response, *, date_of_birth: date | None = None) -> str:
         """
         Generate the Google OAuth2 authorization URL.
         A random state token is stored in Redis to prevent CSRF.
@@ -77,7 +78,7 @@ class GoogleAuthService:
         state = secrets.token_urlsafe(32)
 
         # Store state in Redis for 10 minutes
-        await self._redis.setex(f"oauth:state:{state}", 600, "1")
+        await self._redis.setex(f"oauth:state:{state}", 600, date_of_birth.isoformat() if date_of_birth else "1")
         response.set_cookie(
             OAUTH_STATE_COOKIE, state, max_age=600, httponly=True,
             secure=not settings.is_development, samesite="lax", path=OAUTH_COOKIE_PATH,
@@ -115,8 +116,12 @@ class GoogleAuthService:
             or not secrets.compare_digest(state.encode(), cookie_state.encode())
         ):
             raise HTTPException(status_code=400, detail="Invalid or missing OAuth state.")
-        if not await self._redis.getdel(f"oauth:state:{state}"):
+        state_data = await self._redis.getdel(f"oauth:state:{state}")
+        if not state_data:
             raise HTTPException(status_code=400, detail="Invalid or expired OAuth state.")
+        if isinstance(state_data, bytes):
+            state_data = state_data.decode()
+        birth_date = date.fromisoformat(state_data) if state_data != "1" else None
 
         # Exchange code for Google tokens
         google_tokens = await self._exchange_code(code)
@@ -138,7 +143,7 @@ class GoogleAuthService:
             )
 
         # Find or create user
-        user, is_new = await self._get_or_create_user(email, profile)
+        user, is_new = await self._get_or_create_user(email, profile, date_of_birth=birth_date)
 
         # Issue our JWT tokens
         access_token = create_access_token(
@@ -223,7 +228,7 @@ class GoogleAuthService:
         return response.json()
 
     async def _get_or_create_user(
-        self, email: str, profile: dict
+        self, email: str, profile: dict, *, date_of_birth: date | None = None
     ) -> tuple[User, bool]:
         """
         Find existing user by email or create a new one.
@@ -245,6 +250,9 @@ class GoogleAuthService:
                 )
             return existing, False
 
+        if date_of_birth is None or not is_adult(date_of_birth):
+            raise HTTPException(status_code=422, detail="A date of birth confirming you are at least 18 is required to register. Start signup again with your date of birth.")
+
         # Create new user — no password for social login users
         # A valid hash of an unknown random password keeps password verification
         # safe without providing a usable password for social-login accounts.
@@ -254,6 +262,7 @@ class GoogleAuthService:
             email=email,
             hashed_password=fake_hash,
             role=UserRole.SEEKER,
+            date_of_birth=datetime.combine(date_of_birth, time.min, tzinfo=timezone.utc),
         )
 
         # Auto-activate — Google already verified the email

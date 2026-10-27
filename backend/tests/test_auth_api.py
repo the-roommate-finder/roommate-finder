@@ -15,7 +15,7 @@ PASSWORD = "LocalTest123!"
 
 async def register(api):
     response = await api.client.post(f"{AUTH}/register", json={
-        "email": api.email, "password": PASSWORD, "role": "lister", "display_name": "API Test",
+        "email": api.email, "password": PASSWORD, "date_of_birth": "2000-01-01", "role": "lister", "display_name": "API Test",
     })
     assert response.status_code == 201, response.text
     assert response.json()["role"] == "lister"
@@ -57,9 +57,9 @@ async def test_register_verify_login_refresh_logout(api):
 
 async def test_duplicate_registration_and_admin_role_rejected(api):
     await register(api)
-    response = await api.client.post(f"{AUTH}/register", json={"email": api.email, "password": PASSWORD})
+    response = await api.client.post(f"{AUTH}/register", json={"email": api.email, "password": PASSWORD, "date_of_birth": "2000-01-01"})
     assert response.status_code == 409
-    response = await api.client.post(f"{AUTH}/register", json={"email": api.email, "password": PASSWORD, "role": "admin"})
+    response = await api.client.post(f"{AUTH}/register", json={"email": api.email, "password": PASSWORD, "date_of_birth": "2000-01-01", "role": "admin"})
     assert response.status_code == 422
 
 
@@ -80,10 +80,10 @@ async def test_password_reset_and_lockout(api):
     assert (await login(api, "Replacement123!")).status_code == 200
 
 
-async def begin_google(api, monkeypatch, redirect=False):
+async def begin_google(api, monkeypatch, redirect=False, date_of_birth="2000-01-01"):
     monkeypatch.setattr(settings, "GOOGLE_CLIENT_ID", "test-client")
     monkeypatch.setattr(settings, "GOOGLE_CLIENT_SECRET", "test-secret")
-    response = await api.client.get(f"{AUTH}/google" + ("/redirect" if redirect else ""))
+    response = await api.client.get(f"{AUTH}/google" + ("/redirect" if redirect else ""), params={"date_of_birth": date_of_birth} if date_of_birth else {})
     assert response.status_code == (302 if redirect else 200)
     url = response.headers["location"] if redirect else response.json()["auth_url"]
     state = parse_qs(urlparse(url).query)["state"][0]
@@ -197,7 +197,7 @@ async def test_otp_attempt_limit_persists_after_failed_requests(api, channel):
 @pytest.mark.parametrize("channel", ["email", "phone"])
 async def test_verification_session_and_resume_onboarding(api, role, channel):
     response = await api.client.post(f"{AUTH}/register", json={
-        "email": api.email, "password": PASSWORD, "role": role,
+        "email": api.email, "password": PASSWORD, "date_of_birth": "2000-01-01", "role": role,
     })
     assert response.status_code == 201, response.text
     user = response.json()

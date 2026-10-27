@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from typing import Optional
 
 import structlog
@@ -97,6 +97,7 @@ class AuthService:
         email: str,
         password: str,
         *,
+        date_of_birth: date,
         display_name: Optional[str] = None,
         phone_number: Optional[str] = None,
         role: UserRole = UserRole.SEEKER,
@@ -124,6 +125,7 @@ class AuthService:
             role=role,
             display_name=display_name,
             phone_number=phone_number,
+            date_of_birth=datetime.combine(date_of_birth, time.min, tzinfo=timezone.utc),
         )
 
         await self._send_otp(user)

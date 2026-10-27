@@ -65,6 +65,7 @@ class UserRepository(BaseRepository[User]):
         role: UserRole = UserRole.SEEKER,
         display_name: Optional[str] = None,
         phone_number: Optional[str] = None,
+        date_of_birth: Optional[datetime] = None,
     ) -> User:
         return await self.create(
             email=email,
@@ -72,6 +73,7 @@ class UserRepository(BaseRepository[User]):
             role=role,
             display_name=display_name,
             phone_number=phone_number,
+            date_of_birth=date_of_birth,
             is_active=False,
             is_email_verified=False,
         )

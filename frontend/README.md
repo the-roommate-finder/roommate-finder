@@ -429,3 +429,13 @@ No example properties, people, or metrics are inserted into production.
 Checks: `tests/lister-dashboard.spec.ts`, `tests/member-route.test.cjs`, and backend
 `tests/test_lister_dashboard.py`. Use `PLAYWRIGHT_BASE_URL=http://localhost:3000`
 with the development server so Next permits the browser's development origin.
+
+### Adult registration
+
+Both signup roles require a date of birth and show the 18+ requirement. The date
+picker and submission validation use the same UTC birthday boundary as the API,
+including leap years. The birthday is sent to `/api/auth/register`, stored on the
+account, and prefilled during seeker profile creation. Profile date selection
+also enforces 18+. Existing login flows do not ask for the birthday again.
+Checks: `tests/registration-age.spec.ts`, `tests/age-validation.test.cjs`, and
+backend `tests/test_registration_age.py`.
