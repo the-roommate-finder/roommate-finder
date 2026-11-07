@@ -5,7 +5,7 @@ from typing import Annotated
 import structlog
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from jose import JWTError
+from jwt import InvalidTokenError as JWTError
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 

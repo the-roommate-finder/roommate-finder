@@ -204,13 +204,13 @@ export function SeekerDashboard({ initialView = 'home', initialParticipant, init
       <Link href="/" className="dashboard-logo" aria-label="Roommate Finder home" data-asset-slot="brand-logo" />
       <button className="dashboard-menu-close" onClick={() => { setMenu(false); menuButton.current?.focus(); }} aria-label="Close navigation"><X /></button>
       <nav>
-        <button className={view === 'home' ? 'active' : ''} aria-current={view === 'home' ? 'page' : undefined} onClick={() => navigate('home')}><Home />Home</button>
-        <button className={view === 'browse' || view === 'matches' ? 'active' : ''} aria-current={view === 'browse' ? 'page' : undefined} onClick={() => navigate('browse')}><Search />Browse</button>
-        <button className={view === 'saved' ? 'active' : ''} aria-current={view === 'saved' ? 'page' : undefined} onClick={() => navigate('saved')}><Heart />Saved</button>
-        <button className={view === 'messages' ? 'active' : ''} aria-current={view === 'messages' ? 'page' : undefined} onClick={() => navigate('messages')}><MessageSquare />Messages</button>
-        <Link href="/dashboard/profile" className={view === 'profile' ? 'active' : ''} aria-current={view === 'profile' ? 'page' : undefined}><UserRound />Profile</Link>
+        <button className={view === 'home' ? 'active' : ''} aria-current={view === 'home' ? 'page' : undefined} onClick={() => navigate('home')}><Home /><span className="sidebar-label">Home</span></button>
+        <button className={view === 'browse' || view === 'matches' ? 'active' : ''} aria-current={view === 'browse' ? 'page' : undefined} onClick={() => navigate('browse')}><Search /><span className="sidebar-label">Browse</span></button>
+        <button className={view === 'saved' ? 'active' : ''} aria-current={view === 'saved' ? 'page' : undefined} onClick={() => navigate('saved')}><Heart /><span className="sidebar-label">Saved</span></button>
+        <button className={view === 'messages' ? 'active' : ''} aria-current={view === 'messages' ? 'page' : undefined} onClick={() => navigate('messages')}><MessageSquare /><span className="sidebar-label">Messages</span></button>
+        <Link href="/dashboard/profile" className={view === 'profile' ? 'active' : ''} aria-current={view === 'profile' ? 'page' : undefined}><UserRound /><span className="sidebar-label">Profile</span></Link>
       </nav>
-      <button className="dashboard-logout" disabled={loggingOut} onClick={logout}><LogOut />{loggingOut ? 'Signing out…' : 'Log Out'}</button>
+      <button className="dashboard-logout" disabled={loggingOut} onClick={logout}><LogOut /><span className="sidebar-label">{loggingOut ? 'Signing out…' : 'Log Out'}</span></button>
     </aside>
     <div className="dashboard-body">
       <header className="dashboard-header">

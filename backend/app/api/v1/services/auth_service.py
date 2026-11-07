@@ -6,7 +6,7 @@ from typing import Optional
 
 import structlog
 from fastapi import HTTPException, Request, status
-from jose import JWTError
+from jwt import InvalidTokenError as JWTError
 from redis.asyncio import Redis
 from user_agents import parse as parse_ua
 from sqlalchemy import select

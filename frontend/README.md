@@ -439,3 +439,10 @@ account, and prefilled during seeker profile creation. Profile date selection
 also enforces 18+. Existing login flows do not ask for the birthday again.
 Checks: `tests/registration-age.spec.ts`, `tests/age-validation.test.cjs`, and
 backend `tests/test_registration_age.py`.
+
+### Security dependency updates (October 2026)
+
+Next.js and its ESLint configuration are pinned to 16.4.3. The lockfile includes
+patched Sharp, Zod, and PostCSS selector parser dependencies. After pulling,
+run `npm ci` and restart the development server, or rebuild the production app.
+Use `npm audit` to check the installed dependency tree for known advisories.

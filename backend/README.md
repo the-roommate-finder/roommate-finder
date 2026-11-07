@@ -304,3 +304,42 @@ Either callback rejects new account creation if the birthday was omitted.
 Existing Google accounts can still sign in without resubmitting it.
 This is a check of the supplied birthday, not independent identity verification.
 Existing accounts are not retrospectively disabled by this registration change.
+
+### Security dependency updates (October 2026)
+
+JWT signing and validation now use PyJWT instead of python-jose. Existing signed
+access tokens retain the same format and configured algorithm; invalid tokens
+still return authentication errors. The dependency pins also update Pillow,
+python-multipart, FastAPI/Starlette, cryptography, python-dotenv, orjson, and the
+pytest tools to address the dependency audit findings.
+
+Rebuild backend images after pulling these changes (from the repository root):
+
+```bash
+docker compose up -d --build
+```
+
+Re-audit with `pip-audit -r requirements.txt` from `backend/`, using a separate
+environment for the audit tool. A clean audit covers known package advisories at
+the time it runs; it is not a review of all application security.
+
+### Redis transport compatibility
+
+Celery is installed with its `redis` extra so pip checks the broker transport's
+Redis client requirements. Keep the tested pins together: Celery 5.6.3,
+Kombu 5.7.0, and redis-py 6.4.0. The Redis server image is a separate dependency.
+`limits` 5.8.0 permits the `packaging` version required by Kombu's Redis extra.
+Installing plain Celery previously allowed Kombu 5.7.0 alongside redis-py 5.2.0,
+which failed at runtime in the worker, scheduler, and Flower.
+
+After changing these dependencies, rebuild all backend consumers and verify
+that a worker responds (from the repository root):
+
+```bash
+docker compose up -d --build api worker beat flower
+docker compose exec flower celery -A app.workers.tasks.celery_app inspect ping
+docker compose exec api python -m pip check
+```
+
+A container being `running` or a successful `pip check` alone does not prove
+the broker connection works; `inspect ping` must return a worker's `pong`.

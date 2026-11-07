@@ -6,7 +6,7 @@ import { SeekerDashboard } from './seeker-dashboard';
 import { ListerDashboard, type ListerAccount } from './lister-dashboard';
 import { DashboardSkeleton } from './dashboard-skeleton';
 
-export function DashboardEntry({ listerView = 'home', initialSearch = '', ...props }: ComponentProps<typeof SeekerDashboard> & { listerView?: string; initialSearch?: string }) {
+export function DashboardEntry({ listerView = 'home', initialSearch = '', listingId, ...props }: ComponentProps<typeof SeekerDashboard> & { listerView?: string; initialSearch?: string; listingId?: string }) {
   const router = useRouter();
   const [user, setUser] = useState<ListerAccount | null>(null);
   const [error, setError] = useState('');
@@ -22,5 +22,5 @@ export function DashboardEntry({ listerView = 'home', initialSearch = '', ...pro
     return () => controller.abort();
   }, [retry, router]);
   if (!user) return error ? <main className="workspace-loading"><p role="alert">{error} <button onClick={() => { setError(''); setRetry(value => value + 1); }}>Try again</button></p></main> : <DashboardSkeleton />;
-  return user.role === 'lister' ? <ListerDashboard key={`${props.initialView || listerView}:${initialSearch}:${props.profileSettings || ''}`} user={user} initialView={props.initialView === 'messages' ? 'messages' : props.initialView === 'profile' ? 'settings' : listerView} initialSearch={initialSearch} profileSettings={props.profileSettings} profileConversation={props.profileConversation} initialConversation={props.initialConversation} initialParticipant={props.initialParticipant} initialDraft={props.initialDraft} /> : <SeekerDashboard {...props} />;
+  return user.role === 'lister' ? <ListerDashboard listingId={listingId} key={`${props.initialView || listerView}:${initialSearch}:${props.profileSettings || ''}`} user={user} initialView={props.initialView === 'messages' ? 'messages' : props.initialView === 'profile' ? 'settings' : listerView} initialSearch={initialSearch} profileSettings={props.profileSettings} profileConversation={props.profileConversation} initialConversation={props.initialConversation} initialParticipant={props.initialParticipant} initialDraft={props.initialDraft} /> : <SeekerDashboard {...props} />;
 }

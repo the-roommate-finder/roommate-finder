@@ -4,9 +4,9 @@ export function Skeleton({ variant = 'line' }: { variant?: 'line' | 'short' | 'n
   return <span aria-hidden="true" className={`dashboard-skeleton dashboard-skeleton--${variant}`} />;
 }
 
-export function ListingSkeletonRows() {
+export function ListingSkeletonRows({ selectable = true }: { selectable?: boolean }) {
   return <>{Array.from({ length: 6 }, (_, index) => <tr key={index} aria-hidden="true" className="listing-skeleton-row">
-    <td><Skeleton variant="short" /></td>
+    {selectable && <td><Skeleton variant="short" /></td>}
     <td><div className="lister-property"><Skeleton variant="photo" /><div className="dashboard-skeleton-copy"><Skeleton /><Skeleton variant="short" /></div></div></td>
     {Array.from({ length: 5 }, (_, column) => <td key={column}><Skeleton variant="short" /></td>)}
   </tr>)}</>;

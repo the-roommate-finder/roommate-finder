@@ -339,7 +339,14 @@ test('lister listing routes forward allowed fields and reject ownership override
   assert.equal(response.status, 200);
   assert.equal((await handlers(noUpstream).PATCH(request(path, 'PATCH', { ...payload, owner_id: 'RMF-111111' }), context(path))).status, 400);
   assert.equal((await handlers(noUpstream).POST(request('listings', 'POST', { ...payload }), context('listings'))).status, 400);
-  assert.equal((await handlers(noUpstream).DELETE(request(path, 'DELETE'), context(path))).status, 405);
+  const deletion = await handlers(async (url, options) => {
+    assert.equal(url, `http://127.0.0.1:8000/api/v1/${path}`);
+    assert.equal(options.method, 'DELETE');
+    assert.equal(options.headers.Authorization, 'Bearer private-access');
+    return Response.json({ message: 'Listing deleted.' });
+  }).DELETE(request(path, 'DELETE'), context(path));
+  assert.equal(deletion.status, 200);
+  assert.equal((await handlers(noUpstream).DELETE(request(path, 'DELETE', undefined, { origin: 'https://untrusted.example' }), context(path))).status, 403);
   for (const ownPath of ['listings/me', 'listings/workspace-summary']) {
     assert.equal((await handlers(async () => Response.json({})).GET(request(ownPath), context(ownPath))).status, 200);
     assert.equal((await handlers(noUpstream).GET(request(`${ownPath}?owner_id=RMF-111111`), context(ownPath))).status, 400);

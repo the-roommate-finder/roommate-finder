@@ -52,7 +52,13 @@ for (const width of [1440, 390]) {
       await page.goto(path);
       await page.evaluate(() => document.fonts.ready);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBeTruthy();
-      await expect(page.locator('[data-asset-slot]').first()).toBeVisible();
+      if (path === '/login' && width <= 760) {
+        // The split login layout intentionally hides its image panel on phones.
+        await expect(page.locator('.login-image-panel')).toBeHidden();
+        await expect(page.getByLabel('Email', { exact: true })).toBeVisible();
+      } else {
+        await expect(page.locator('[data-asset-slot]').first()).toBeVisible();
+      }
       await page.screenshot({ path: `/tmp/roommate-${path.replaceAll('/', '-')}-${width}.png`, fullPage: true });
     }
   });

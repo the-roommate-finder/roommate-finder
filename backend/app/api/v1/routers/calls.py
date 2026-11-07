@@ -4,7 +4,7 @@ from typing import Any
 
 import structlog
 from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect, status
-from jose import JWTError
+from jwt import InvalidTokenError as JWTError
 
 from app.api.v1.models.models import CallLog, CallStatus, CallType
 from app.api.v1.schemas.schemas import CallResponse, WebRTCConfig

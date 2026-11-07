@@ -11,7 +11,7 @@ const listingFields = ['title', 'description', 'property_type', 'address', 'city
 const endpoints: Endpoint[] = [
   { path: /^listings\/(me|workspace-summary)$/, methods: { GET: {} } },
   { path: /^listings$/, methods: { POST: { fields: listingFields } } },
-  { path: new RegExp(`^listings/${uuid}$`), methods: { PATCH: { fields: [...listingFields, 'is_available'] } } },
+  { path: new RegExp(`^listings/${uuid}$`), methods: { DELETE: {}, PATCH: { fields: [...listingFields, 'is_available'] } } },
   { path: /^dashboard$/, methods: { GET: { query: ['city', 'area', 'room_page', 'roommate_page', 'page_size', 'mode', 'location', 'min_rent', 'max_rent', 'property_type', 'amenities', 'available_by', 'min_budget', 'max_budget', 'sleep_schedule', 'cleanliness', 'move_in_timeline', 'saved_sort'] } } },
   { path: new RegExp(`^dashboard/saved/(room/${uuid}|roommate/RMF-[0-9]{6})$`), methods: { PUT: {}, DELETE: {} } },
   { path: /^dashboard\/searches$/, methods: { POST: { fields: ['city', 'area', 'kind'] } } },

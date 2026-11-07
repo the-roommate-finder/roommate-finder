@@ -238,3 +238,21 @@
   .dashboard-saved-toolbar h2 { font-size: 12px; }
   .dashboard-saved .dashboard-grid { row-gap: 24px; }
 }
+
+/* Desktop hover navigation expands over the page, keeping content stationary.
+   Touch devices retain the full navigation and existing mobile drawer. */
+@media (min-width: 761px) and (hover: hover) and (pointer: fine) {
+  .seeker-dashboard { background: linear-gradient(to right, #000080 80px, #f7f8fa 80px); }
+  .dashboard-body { margin-left: 80px; }
+  .dashboard-sidebar { width: 80px; padding-inline: 12px; overflow-x: hidden; transition: width .2s ease, box-shadow .2s ease; }
+  .dashboard-sidebar:is(:hover, :focus-within) { width: 260px; box-shadow: 8px 0 24px #00000018; }
+  .dashboard-sidebar :is(nav a, nav button, .dashboard-logout) { white-space: nowrap; gap: 0; min-width: 0; }
+  .dashboard-sidebar:is(:hover, :focus-within) :is(nav a, nav button, .dashboard-logout) { gap: 14px; }
+  .dashboard-sidebar .sidebar-label { display: inline-block; flex-shrink: 0; max-width: 0; overflow: hidden; opacity: 0; transition: opacity .15s ease, max-width .2s ease; }
+  .dashboard-sidebar:is(:hover, :focus-within) .sidebar-label { max-width: 190px; opacity: 1; }
+  .dashboard-sidebar .dashboard-logo { width: 44px; transition: width .2s ease; }
+  .dashboard-sidebar:is(:hover, :focus-within) .dashboard-logo { width: 118px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-sidebar, .dashboard-sidebar .sidebar-label, .dashboard-sidebar .dashboard-logo { transition: none; }
+}
