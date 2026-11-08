@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import re
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import Any, Generic, Literal, Optional, TypeVar
 
 from pydantic import (
@@ -826,6 +826,15 @@ class ListingDraftRequest(BaseModel):
     postcode: str = Field(default="", pattern=r"^(?:[0-9]{6})?$")
     latitude: Optional[float] = Field(default=None, ge=-90, le=90, allow_inf_nan=False)
     longitude: Optional[float] = Field(default=None, ge=-180, le=180, allow_inf_nan=False)
+
+    rent_amount: Optional[float] = Field(default=None, gt=0, le=1_000_000_000_000, allow_inf_nan=False)
+    payment_period: Optional[Literal["monthly", "quarterly", "yearly"]] = None
+    service_charge: Optional[float] = Field(default=None, ge=0, le=1_000_000_000_000, allow_inf_nan=False)
+    agreement_fee: Optional[float] = Field(default=None, ge=0, le=1_000_000_000_000, allow_inf_nan=False)
+    legal_fee: Optional[float] = Field(default=None, ge=0, le=1_000_000_000_000, allow_inf_nan=False)
+    caution_deposit: Optional[float] = Field(default=None, ge=0, le=1_000_000_000_000, allow_inf_nan=False)
+    availability_status: Optional[Literal["available_now", "from_date"]] = None
+    move_in_date: Optional[date] = None
 
     @model_validator(mode="after")
     def validate_pin(self):

@@ -252,3 +252,27 @@ async def test_verification_session_and_resume_onboarding(api, role, channel):
     resumed = await login(api)
     assert resumed.status_code == 200
     assert resumed.json()["user"]["is_profile_complete"] is True
+
+
+async def test_deleted_email_remains_reserved(api):
+    user = await register(api)
+    async with api.sessions() as session:
+        await session.execute(update(User).where(User.id == user['id']).values(is_deleted=True, is_active=False))
+        await session.commit()
+    response = await api.client.post(f"{AUTH}/register", json={"email": api.email, "password": PASSWORD, "date_of_birth": "2000-01-01"})
+    assert response.status_code == 409, response.text
+    assert "already exists" in response.text
+    assert "INSERT INTO" not in response.text
+
+
+async def test_registration_duplicate_after_precheck(api, monkeypatch):
+    from app.api.v1.repositories.user_repository import UserRepository
+    await register(api)
+    deliveries = api.deliveries['send_otp_email'].call_count
+    # Simulate another registration winning after the availability check.
+    monkeypatch.setattr(UserRepository, 'email_exists', AsyncMock(return_value=False))
+    response = await api.client.post(f"{AUTH}/register", json={"email": api.email, "password": PASSWORD, "date_of_birth": "2000-01-01"})
+    assert response.status_code == 409, response.text
+    assert "already exists" in response.text
+    assert "INSERT INTO" not in response.text
+    assert api.deliveries['send_otp_email'].call_count == deliveries

@@ -50,3 +50,14 @@
 
 .listing-location-page .listing-create-card { max-width:1344px; }
 .listing-map-section details > button { margin-top:12px; padding:8px 12px; background:white; color:#000080; border:1px solid #dce3ef; border-radius:6px; cursor:pointer; }
+.listing-payment { margin-top:20px; }
+.listing-create-card .listing-payment legend { font-size:14px; margin-bottom:16px; }
+.listing-cost-summary { background:#ebebf6; border-radius:8px; padding:20px; margin-top:40px; }
+.listing-create-card .listing-cost-summary header { display:flex; justify-content:space-between; gap:12px; text-align:left; margin:0 0 16px; color:#000080; font-size:13px; }
+.listing-cost-summary header span { font-size:10px; }
+.listing-cost-summary dl > div { display:flex; justify-content:space-between; gap:16px; margin:14px 0; font-size:13px; }
+.listing-cost-summary dt { color:#66758f; }
+.listing-cost-summary dd { margin:0; text-align:right; overflow-wrap:anywhere; }
+.listing-cost-summary .listing-cost-total { border-top:1px solid #d1d3e9; padding-top:16px; align-items:center; color:#000080; font-weight:700; }
+.listing-cost-total dt { color:#000080; }
+.listing-cost-total dd { font-size:24px; }

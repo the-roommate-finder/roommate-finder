@@ -10,6 +10,7 @@ from jwt import InvalidTokenError as JWTError
 from redis.asyncio import Redis
 from user_agents import parse as parse_ua
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 
 from app.api.v1.models.models import (
     SecurityEventType,
@@ -119,14 +120,28 @@ class AuthService:
             )
 
         hashed = hash_password(password)
-        user = await self._users.create_user(
-            email=email,
-            hashed_password=hashed,
-            role=role,
-            display_name=display_name,
-            phone_number=phone_number,
-            date_of_birth=datetime.combine(date_of_birth, time.min, tzinfo=timezone.utc),
-        )
+        try:
+            # The unique index also protects against simultaneous registrations.
+            async with self._users.db.begin_nested():
+                user = await self._users.create_user(
+                    email=email,
+                    hashed_password=hashed,
+                    role=role,
+                    display_name=display_name,
+                    phone_number=phone_number,
+                    date_of_birth=datetime.combine(date_of_birth, time.min, tzinfo=timezone.utc),
+                )
+        except IntegrityError as exc:
+            cause = getattr(exc.orig, "__cause__", None)
+            constraint = getattr(cause, "constraint_name", None)
+            field = {"ix_users_email": "email", "users_phone_number_key": "phone number"}.get(constraint)
+            if field is None:
+                raise
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"An account with this {field} already exists.",
+            ) from None
+
 
         await self._send_otp(user)
 

@@ -177,7 +177,7 @@ class ErrorHandlingMiddleware(BaseHTTPMiddleware):
     """
     Catch-all for unhandled exceptions.
     Returns a consistent JSON error envelope instead of a 500 HTML page.
-    Never exposes internal details in production.
+    Never exposes internal details in HTTP responses.
     """
 
     async def dispatch(
@@ -197,9 +197,7 @@ class ErrorHandlingMiddleware(BaseHTTPMiddleware):
                 exc_type=type(exc).__name__,
             )
 
-            detail = (
-                str(exc) if settings.is_development else "An unexpected error occurred"
-            )
+            detail = "An unexpected error occurred"
             return JSONResponse(
                 status_code=500,
                 content={

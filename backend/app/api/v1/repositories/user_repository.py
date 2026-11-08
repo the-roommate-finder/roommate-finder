@@ -40,7 +40,7 @@ class UserRepository(BaseRepository[User]):
 
     async def email_exists(self, email: str) -> bool:
         result = await self.db.execute(
-            select(User.id).where(User.email == email, User.is_deleted == False)  # noqa: E712
+            select(User.id).where(User.email == email)
         )
         return result.scalar_one_or_none() is not None
 
@@ -52,7 +52,7 @@ class UserRepository(BaseRepository[User]):
 
     async def phone_exists(self, phone_number: str) -> bool:
         result = await self.db.execute(
-            select(User.id).where(User.phone_number == phone_number, User.is_deleted == False)  # noqa: E712
+            select(User.id).where(User.phone_number == phone_number)
         )
         return result.scalar_one_or_none() is not None
 
