@@ -61,3 +61,14 @@
 .listing-cost-summary .listing-cost-total { border-top:1px solid #d1d3e9; padding-top:16px; align-items:center; color:#000080; font-weight:700; }
 .listing-cost-total dt { color:#000080; }
 .listing-cost-total dd { font-size:24px; }
+.listing-amenities-heading { display:flex; justify-content:space-between; align-items:baseline; gap:16px; margin-bottom:24px; }
+.listing-amenities-heading span { font-size:12px; color:#000080; white-space:nowrap; }
+.listing-amenities-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px 16px; }
+.listing-create-card .listing-amenity { display:flex; align-items:center; gap:12px; min-height:72px; margin:0; padding:14px 16px; border:1px solid #dce3ef; border-radius:8px; cursor:pointer; }
+.listing-amenity:has(input:checked) { background:#ebebf6; border-color:#aaa8ef; }
+.listing-create-card .listing-amenity input[type=checkbox] { flex:0 0 20px; width:20px; height:20px; min-height:20px; margin:0; padding:0; accent-color:#000080; box-shadow:none; }
+.listing-amenity span { flex:1; min-width:0; }
+.listing-amenity strong { display:block; font-size:14px; font-weight:600; color:#1e2b43; }
+.listing-amenity small { display:block; font-size:12px; color:#66758f; margin-top:4px; }
+.listing-amenity svg { flex-shrink:0; }
+@media(max-width:600px) { .listing-amenities-grid { grid-template-columns:1fr; } .listing-amenities-heading h3 { font-size:18px; } }

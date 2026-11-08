@@ -836,6 +836,14 @@ class ListingDraftRequest(BaseModel):
     availability_status: Optional[Literal["available_now", "from_date"]] = None
     move_in_date: Optional[date] = None
 
+    amenities: list[Literal["water", "electricity", "security", "kitchen", "bathroom", "parking", "wifi", "generator", "balcony", "air_conditioning", "washing_machine", "cctv"]] = Field(default_factory=list, max_length=12)
+    facility_notes: str = Field(default="", max_length=2000)
+
+    @field_validator("amenities")
+    @classmethod
+    def unique_amenities(cls, value):
+        return list(dict.fromkeys(value))
+
     @model_validator(mode="after")
     def validate_pin(self):
         if (self.latitude is None) != (self.longitude is None):
