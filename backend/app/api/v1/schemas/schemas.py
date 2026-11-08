@@ -809,3 +809,26 @@ class SocialLoginResponse(BaseModel):
     expires_in: int
     user: "UserPublicResponse"
     is_new_user: bool = False
+
+
+class ListingDraftRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    property_type: Optional[PropertyType] = None
+    bathrooms: Optional[int] = Field(default=None, ge=1, le=20)
+    title: str = Field(default="", max_length=80)
+    description: str = Field(default="", max_length=5000)
+    furnishing: Optional[Literal["furnished", "part_furnished", "unfurnished"]] = None
+    state: str = Field(default="", max_length=100)
+    city: str = Field(default="", max_length=100)
+    area: str = Field(default="", max_length=150)
+    landmark: str = Field(default="", max_length=300)
+    address: str = Field(default="", max_length=500)
+    postcode: str = Field(default="", pattern=r"^(?:[0-9]{6})?$")
+    latitude: Optional[float] = Field(default=None, ge=-90, le=90, allow_inf_nan=False)
+    longitude: Optional[float] = Field(default=None, ge=-180, le=180, allow_inf_nan=False)
+
+    @model_validator(mode="after")
+    def validate_pin(self):
+        if (self.latitude is None) != (self.longitude is None):
+            raise ValueError("Provide both latitude and longitude for the map pin.")
+        return self

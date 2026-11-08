@@ -15,7 +15,8 @@
 .lister-sidebar nav a[aria-current='page'], .lister-sidebar nav a:hover { background: #282898; color: #fff; }
 .lister-sidebar nav b { margin-left: auto; font-size: 11px; background: #282898; color: #fff; padding: 1px 6px; border-radius: 4px; }
 .lister-sidebar-bottom { margin-top: auto; padding-top: 48px; }
-.lister-primary { border: 0; background: #000080; color: #fff; border-radius: 24px; padding: 12px 18px; min-height: 44px; font-size: 13px; }
+.lister-primary { display: inline-flex; align-items: center; justify-content: center; border: 0; background: #000080; color: #fff; border-radius: 24px; padding: 12px 18px; min-height: 44px; font-size: 13px; }
+.lister-workspace a.lister-primary { color: #fff; }
 .lister-primary:hover { background: #19199a; }
 .lister-welcome > .lister-primary { flex-shrink: 0; border: 1px solid #248653; }
 .lister-help { display: flex; align-items: center; gap: 10px; padding: 0; color: #fff !important; font-size: 12px; }
@@ -170,11 +171,12 @@
 }
 @media (prefers-reduced-motion: reduce) { .lister-sidebar { transition: none; } }
 
-/* Desktop hover navigation expands over the page, keeping content stationary.
+/* Desktop navigation and page content resize together on hover or focus.
    Touch devices retain the full navigation and existing mobile drawer. */
 @media (min-width: 901px) and (hover: hover) and (pointer: fine) {
   .lister-workspace { background: linear-gradient(to right, #000080 80px, #f7f8fa 80px); }
-  .lister-main { margin-left: 80px; }
+  .lister-main { margin-left: 80px; transition: margin-left .2s ease; }
+  .lister-sidebar:is(:hover, :focus-within) ~ .lister-main { margin-left: 260px; }
   .lister-sidebar { width: 80px; padding-inline: 12px; overflow-x: hidden; transition: width .2s ease, box-shadow .2s ease; }
   .lister-sidebar:is(:hover, :focus-within) { width: 260px; box-shadow: 8px 0 24px #00000018; }
   .lister-sidebar :is(nav a, nav button, .lister-help) { white-space: nowrap; gap: 0; min-width: 0; }
@@ -189,7 +191,7 @@
   .lister-sidebar:not(:hover):not(:focus-within) nav b { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .lister-sidebar, .lister-sidebar .sidebar-label, .lister-sidebar .lister-brand { transition: none; }
+  .lister-main, .lister-sidebar, .lister-sidebar .sidebar-label, .lister-sidebar .lister-brand { transition: none; }
 }
 
 .property-breadcrumb { display: flex; gap: 10px; color: #767c76; font-size: 12px; margin-bottom: 24px; }

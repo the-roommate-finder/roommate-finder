@@ -1,0 +1,52 @@
+.listing-create-page { min-height:100dvh; padding:60px 24px 80px; background:var(--canvas,#eff6ff); color:#121212; font-family:'Plus Jakarta Sans Variable',sans-serif; }
+.listing-create-card { max-width:1160px; margin:auto; padding:60px 36px 50px; background:white; border:1px solid #dce3ef; border-radius:18px; }
+.listing-create-card header { text-align:center; margin-bottom:56px; }
+.listing-create-card header .logo-slot { margin:0 auto 24px; }
+.listing-create-card h1 { font-size:18px; font-weight:400; margin:0 0 10px; }
+.listing-create-card header p { font-size:16px; line-height:1.6; }
+.listing-create-intro { margin-bottom:52px; }
+.listing-create-intro h2 { font-size:24px; font-weight:750; margin-bottom:8px; }
+.listing-create-intro p,.listing-field-hint { color:#66758f; font-size:13px; line-height:1.6; }
+.listing-create-card fieldset { border:0; padding:0; min-width:0; }
+.listing-create-card section { margin-bottom:52px; }
+.listing-create-card h3,.listing-create-card legend { font-size:20px; font-weight:700; color:#1e2b43; margin-bottom:20px; }
+.listing-create-card label { display:block; font-size:13px; color:#353535; margin-top:18px; }
+.listing-create-card em { color:#bd1818; font-style:normal; }
+.listing-create-card input:not([type=radio]),.listing-create-card select,.listing-create-card textarea { display:block; box-sizing:border-box; width:100%; min-height:44px; margin-top:7px; border:1px solid #dce3ef; border-radius:8px; background:white; padding:11px 13px; font:inherit; color:#121212; box-shadow:0 1px 2px #00000008; }
+.listing-create-card textarea { min-height:80px; resize:vertical; line-height:1.65; }
+.listing-create-card :focus-visible { outline:2px solid #000080; outline-offset:3px; }
+.listing-field-hint { font-size:12px; margin-top:6px; }
+.listing-furnishing > div { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; }
+.listing-furnishing label { margin:0; display:flex; align-items:center; gap:10px; border:1px solid #dce3ef; border-radius:8px; padding:12px; color:#1e2b43; }
+.listing-furnishing label:has(input:checked) { border-color:#000080; background:#ebebf6; }
+.listing-furnishing input { accent-color:#000080; width:16px; height:16px; }
+.listing-furnishing .listing-field-hint { margin-top:16px; }
+.listing-create-tip { margin:52px 0; background:#ebebf6; border-radius:16px; padding:22px; display:flex; align-items:center; gap:22px; }
+.listing-create-tip svg { flex-shrink:0; }
+.listing-create-tip strong { font-size:14px; font-weight:600; color:#000080; }
+.listing-create-tip p { font-size:12px; color:#66758f; margin-top:8px; }
+.listing-create-card footer { border-top:1px solid #dce3ef; padding-top:24px; }
+.listing-create-actions { display:flex; justify-content:space-between; gap:20px; }
+.listing-create-actions button { padding:12px 24px; background:white; color:#000080; border:1px solid #dce3ef; border-radius:8px; font:inherit; cursor:pointer; }
+.listing-create-actions .listing-continue { background:#000080; color:white; border-color:#000080; }
+.listing-create-card button:disabled { opacity:.5; cursor:not-allowed; }
+.listing-create-error,.listing-create-notice { padding:14px; border-radius:8px; margin-top:20px; font-size:14px; }
+.listing-create-error { background:#fff0ee; color:#a32222; }.listing-create-notice { background:#eef7ef; color:#206b36; }
+@media(max-width:600px) { .listing-create-page { padding:20px 12px; } .listing-create-card { padding:32px 20px; } .listing-create-card header { margin-bottom:36px; } .listing-furnishing > div { grid-template-columns:1fr; gap:10px; } .listing-create-tip { padding:16px; gap:12px; } .listing-create-card header p { font-size:14px; } }
+.listing-location-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+.listing-location-note { display:flex; gap:12px; align-items:center; padding:18px; background:#ebebf6; border-radius:8px; color:#52617b; font-size:12px; margin:40px 0; }
+.listing-location-note svg { flex-shrink:0; }
+.listing-create-card input[aria-invalid=true] { border-color:#ef4444; }
+.listing-postcode-error { color:#d32f2f; font-size:12px; margin-top:8px; }
+.listing-location-map { height:280px; border-radius:8px; background:#eff3e9; z-index:0; }
+.listing-map-pin { border:1px solid #b2b2df; border-radius:50%; background:#00008022; display:grid; place-items:center; }
+.listing-map-pin span { display:block; width:24px; height:24px; border:7px solid #000080; background:white; border-radius:50%; }
+.listing-map-toolbar { display:flex; flex-wrap:wrap; align-items:center; gap:12px; padding:12px; background:#eff3e9; font-size:12px; }
+.listing-map-toolbar button { padding:8px 12px; background:white; color:#000080; border:1px solid #dce3ef; border-radius:6px; cursor:pointer; }
+.listing-map-section summary { font-size:12px; margin-top:16px; cursor:pointer; color:#52617b; }
+.listing-pin-status { font-size:12px; color:#228252; margin-top:14px; }
+.listing-create-actions .listing-continue { margin-left:auto; }
+@media(max-width:600px) { .listing-location-grid { grid-template-columns:1fr; gap:0; } .listing-create-actions { gap:8px; } .listing-create-actions button { padding:12px 14px; } }
+
+.listing-location-page .listing-create-card { max-width:1344px; }
+.listing-map-section details > button { margin-top:12px; padding:8px 12px; background:white; color:#000080; border:1px solid #dce3ef; border-radius:6px; cursor:pointer; }

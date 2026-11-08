@@ -9,6 +9,7 @@ const uuid = '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-
 const conversation = `chat/conversations/${uuid}`;
 const listingFields = ['title', 'description', 'property_type', 'address', 'city', 'state', 'country', 'monthly_rent', 'security_deposit', 'utilities_included', 'gender_preference', 'max_occupants', 'available_from', 'amenities'];
 const endpoints: Endpoint[] = [
+  { path: /^listings\/draft$/, methods: { GET: {}, PUT: { fields: ['property_type', 'bathrooms', 'title', 'description', 'furnishing', 'state', 'city', 'area', 'landmark', 'address', 'postcode', 'latitude', 'longitude'] } } },
   { path: /^listings\/(me|workspace-summary)$/, methods: { GET: {} } },
   { path: /^listings$/, methods: { POST: { fields: listingFields } } },
   { path: new RegExp(`^listings/${uuid}$`), methods: { DELETE: {}, PATCH: { fields: [...listingFields, 'is_available'] } } },

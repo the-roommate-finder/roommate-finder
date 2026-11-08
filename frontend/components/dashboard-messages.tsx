@@ -3,11 +3,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, BadgeCheck, Check, CheckCheck, MessageSquare, MoreVertical, Paperclip, Search, SendHorizontal, Smile, X } from 'lucide-react';
+import { Archive, Ban, Flag, House, ArrowLeft, BadgeCheck, Check, CheckCheck, MessageSquare, MoreVertical, Paperclip, Search, SendHorizontal, Smile, X } from 'lucide-react';
 import { decryptMessage, encryptMessage, prepareIdentity, type ChatIdentity } from './chat-crypto';
 
 type Person = { id: string; display_name: string | null; avatar_url: string | null; location?: string | null; role: string; is_phone_verified: boolean };
-type Participant = { user: Person; unread_count: number; is_muted: boolean; is_pinned: boolean };
+type Participant = { user: Person; unread_count: number; is_muted: boolean; is_archived?: boolean; is_pinned: boolean };
 type Message = { id: string; conversation_id: string; sender_id: string; encrypted_content: string | null; encryption_nonce: string | null; created_at: string; seen_at: string | null; delivered_at: string | null; message_type: string };
 type Conversation = { id: string; participants: Participant[]; last_message_at: string | null; last_message: Message | null; preview?: string };
 type Feed = { items: Conversation[]; total: number; pages: number; page: number };
@@ -29,7 +29,7 @@ async function textOf(message: Message, user: string, identity: ChatIdentity | n
   try { return await decryptMessage(message, user, identity); } catch { return 'This message cannot be opened in this browser.'; }
 }
 
-export function DashboardMessages({ userId, initialParticipant, initialConversation, initialDraft }: { userId: string; initialParticipant?: string; initialConversation?: string; initialDraft?: string }) {
+export function DashboardMessages({ variant = 'seeker', userId, initialParticipant, initialConversation, initialDraft }: { variant?: 'seeker' | 'lister'; userId: string; initialParticipant?: string; initialConversation?: string; initialDraft?: string }) {
   const router = useRouter();
   const [identity, setIdentity] = useState<ChatIdentity | null>(null);
   const [keyError, setKeyError] = useState('');
@@ -67,7 +67,7 @@ export function DashboardMessages({ userId, initialParticipant, initialConversat
     let timer: ReturnType<typeof setTimeout>;
     async function load() {
       try {
-        const result = await request<Feed>(`chat/conversations?page=${page}&page_size=20`, { signal: controller.signal });
+        const result = await request<Feed>(`chat/conversations?page=${page}&page_size=20${variant === 'lister' ? '&include_archived=true' : ''}`, { signal: controller.signal });
         const items = await Promise.all(result.items.map(async item => ({ ...item, preview: item.last_message ? await textOf(item.last_message, userId, identity) : 'Start a conversation' })));
         if (!controller.signal.aborted) { setFeed({ ...result, items }); setLoadedPage(page); setError(''); }
       } catch (reason) { if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : 'Unable to load conversations.'); }
@@ -75,7 +75,7 @@ export function DashboardMessages({ userId, initialParticipant, initialConversat
     }
     void load();
     return () => { controller.abort(); clearTimeout(timer); };
-  }, [keysReady, identity, page, request, retry, userId]);
+  }, [keysReady, identity, page, request, retry, userId, variant]);
   useEffect(() => {
     if (!initialParticipant && !initialConversation) return;
     let cancelled = false;
@@ -88,29 +88,35 @@ export function DashboardMessages({ userId, initialParticipant, initialConversat
   const selected = feed?.items.find(item => item.id === active) || (opened?.id === active ? opened : null);
   const items = (loadedPage === page ? feed?.items : [])?.filter(item => {
     const person = item.participants.find(p => p.user.id !== userId)?.user;
-    return (category === 'all' || person?.role === category) && `${name(person)} ${item.preview}`.toLowerCase().includes(search.trim().toLowerCase());
+    const mine = item.participants.find(p => p.user.id === userId);
+    const matches = variant === 'lister' ? category === 'archived' ? !!mine?.is_archived : !mine?.is_archived && (category !== 'unread' || (mine?.unread_count || 0) > 0) : category === 'all' || person?.role === category;
+    return matches && `${name(person)} ${item.preview}`.toLowerCase().includes(search.trim().toLowerCase());
   });
-  return <div className={`dashboard-messages ${selected ? 'chat-is-open' : ''}`}>
+  const unread = feed?.items.filter(item => !item.participants.find(p => p.user.id === userId)?.is_archived).reduce((sum, item) => sum + (item.participants.find(p => p.user.id === userId)?.unread_count || 0), 0);
+  return <div className={variant === 'lister' ? 'lister-messages-page' : undefined}>
+    {variant === 'lister' && <header className="lister-messages-heading"><h1>Messages &amp; Enquiries</h1><p>Connect with seekers and keep every enquiry in one place.</p></header>}
+    <div className={`dashboard-messages ${selected ? 'chat-is-open' : ''}`}>
     <section className="chat-inbox" aria-label="Conversations">
-      <h1>Messages</h1><p className="chat-description">Keep your conversations with roommates and listers in one place.</p>
-      <label className="chat-search"><input aria-label="Search conversations on this page" placeholder="Search messages…" value={search} onChange={event => setSearch(event.target.value)} /><Search size={20} /></label>
-      <div className="chat-tabs" role="group" aria-label="Conversation category">{[['all', 'All'], ['seeker', 'Roommates'], ['lister', 'Listers']].map(([value, label]) => <button key={value} aria-pressed={category === value} onClick={() => setCategory(value)}>{label}</button>)}</div>
+      {variant === 'lister' ? <div className="lister-conversations-heading"><h2>Conversations</h2><span title="Unread messages on this page">{unread ?? '—'} unread</span></div> : <><h1>Messages</h1><p className="chat-description">Keep your conversations with roommates and listers in one place.</p></>}
+      <label className="chat-search"><input aria-label="Search conversations on this page" placeholder={variant === 'lister' ? 'Search conversations' : 'Search messages…'} value={search} onChange={event => setSearch(event.target.value)} /><Search size={20} /></label>
+      <div className="chat-tabs" role="group" aria-label="Conversation category">{(variant === 'lister' ? [['all', 'All'], ['unread', 'Unread'], ['archived', 'Archived']] : [['all', 'All'], ['seeker', 'Roommates'], ['lister', 'Listers']]).map(([value, label]) => <button key={value} aria-pressed={category === value} onClick={() => setCategory(value)}>{label}</button>)}</div>
+      {variant === 'lister' && <label className="lister-chat-properties" title="Conversations are not linked to properties yet"><House size={18} /><select aria-label="Filter conversations by property" disabled><option>All properties</option></select></label>}
       {error && <p className="chat-error" role="alert">{error} <button onClick={() => setRetry(value => value + 1)}>Try again</button></p>}
       {(!keysReady || !feed || loadedPage !== page) && !error ? <p className="chat-empty" role="status">Loading conversations…</p> : <div className="chat-conversations">{items?.length ? items.map(item => {
         const person = item.participants.find(p => p.user.id !== userId)?.user;
         const unread = item.participants.find(p => p.user.id === userId)?.unread_count || 0;
         return <button className={`chat-conversation ${item.id === active ? 'is-selected' : ''}`} key={item.id} aria-pressed={item.id === active} onClick={() => setActive(item.id)}>
-          <span className="chat-conversation-top"><Avatar person={person} /><strong>{name(person)}</strong><Verified person={person} /><time>{item.last_message_at ? time(item.last_message_at) : ''}</time>{unread > 0 && <span className="chat-unread" aria-label={`${unread} unread messages`} />}</span>
+          <span className="chat-conversation-top"><Avatar person={person} /><strong>{name(person)}</strong><Verified person={person} /><time>{item.last_message_at ? time(item.last_message_at) : ''}</time>{unread > 0 && <span className="chat-unread" aria-label={`${unread} unread messages`}>{variant === 'lister' ? unread : null}</span>}</span>
           <span className="chat-preview">{item.preview}</span>
         </button>;
       }) : <p className="chat-empty">{search || category !== 'all' ? 'No conversations match your search.' : 'No conversations yet. Messages from roommates and listers will appear here.'}</p>}</div>}
       {feed && feed.pages > 1 && <nav className="chat-pagination" aria-label="Conversation pages"><button disabled={page <= 1} onClick={() => { setPage(value => value - 1); setActive(null); }}>Previous</button><span>{page} / {feed.pages}</span><button disabled={page >= feed.pages} onClick={() => { setPage(value => value + 1); setActive(null); }}>Next</button></nav>}
     </section>
-    {selected ? <ChatThread key={`${selected.id}:${initialDraft || ""}`} initialDraft={selected.id === initialConversation ? initialDraft : undefined} conversation={selected} userId={userId} identity={identity} keyError={keyError} request={request} onBack={() => setActive(null)} onUpdate={() => setRetry(value => value + 1)} /> : <section className="chat-no-selection"><MessageSquare size={34} /><h2>Your messages</h2><p>Select a conversation to start chatting.</p>{keyError && <p className="chat-error" role="alert">{keyError}</p>}</section>}
-  </div>;
+    {selected ? <ChatThread variant={variant} key={`${selected.id}:${initialDraft || ""}`} initialDraft={selected.id === initialConversation ? initialDraft : undefined} conversation={selected} userId={userId} identity={identity} keyError={keyError} request={request} onBack={() => setActive(null)} onUpdate={() => setRetry(value => value + 1)} /> : <section className="chat-no-selection"><MessageSquare size={34} /><h2>Your messages</h2><p>Select a conversation to start chatting.</p>{keyError && <p className="chat-error" role="alert">{keyError}</p>}</section>}
+  </div></div>;
 }
 
-function ChatThread({ conversation, initialDraft, userId, identity, keyError, request, onBack, onUpdate }: { conversation: Conversation; initialDraft?: string; userId: string; identity: ChatIdentity | null; keyError: string; request: Request; onBack: () => void; onUpdate: () => void }) {
+function ChatThread({ variant, conversation, initialDraft, userId, identity, keyError, request, onBack, onUpdate }: { variant: 'seeker' | 'lister'; conversation: Conversation; initialDraft?: string; userId: string; identity: ChatIdentity | null; keyError: string; request: Request; onBack: () => void; onUpdate: () => void }) {
   const person = conversation.participants.find(p => p.user.id !== userId)?.user;
   const mine = conversation.participants.find(p => p.user.id === userId);
   const [messages, setMessages] = useState<(Message & { text: string })[]>([]);
@@ -189,7 +195,7 @@ function ChatThread({ conversation, initialDraft, userId, identity, keyError, re
     } catch (reason) { if (mounted.current) setError(reason instanceof Error ? reason.message : 'Message could not be sent. Your draft has been kept.'); }
     finally { sendLock.current = false; if (mounted.current) setSending(false); }
   }
-  async function setting(field: 'is_muted' | 'is_pinned', value: boolean) {
+  async function setting(field: 'is_muted' | 'is_pinned' | 'is_archived', value: boolean) {
     setSettingsBusy(true);
     try { await request(`chat/conversations/${conversation.id}/settings`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ [field]: value }) }); if (mounted.current) { setMenu(false); refresh.current(); } }
     catch (reason) { if (mounted.current) setError(reason instanceof Error ? reason.message : 'Unable to update conversation.'); }
@@ -199,6 +205,7 @@ function ChatThread({ conversation, initialDraft, userId, identity, keyError, re
     <header className="chat-thread-header"><button className="chat-back" aria-label="Back to conversations" onClick={onBack}><ArrowLeft /></button><Link className="chat-profile-link" aria-label={`View ${name(person)}’s profile`} href={`/dashboard/messages/${conversation.id}/profile`}><Avatar person={person} /><div><strong>{name(person)}</strong><span>{person?.location || (person?.role === 'lister' ? 'Property Lister' : 'Roommate')}</span></div><Verified person={person} /></Link>
       <div className="chat-options"><button aria-label="Conversation options" aria-expanded={menu} onClick={() => setMenu(value => !value)}><MoreVertical size={21} /></button>{menu && <div className="chat-options-menu"><button disabled={settingsBusy} onClick={() => setting('is_muted', !mine?.is_muted)}>{mine?.is_muted ? 'Unmute' : 'Mute'} conversation</button><button disabled={settingsBusy} onClick={() => setting('is_pinned', !mine?.is_pinned)}>{mine?.is_pinned ? 'Unpin' : 'Pin'} conversation</button><button onClick={() => setMenu(false)}>Close menu</button></div>}</div>
     </header>
+    {variant === 'lister' && <div className="lister-thread-actions"><button disabled={settingsBusy} onClick={() => void setting('is_archived', !mine?.is_archived)}><Archive size={16} />{mine?.is_archived ? 'Unarchive' : 'Archive'}</button><Link href={`/dashboard/messages/${conversation.id}/profile`} title="Report this user from their profile"><Flag size={16} />Report</Link><Link className="lister-chat-block" href={`/dashboard/messages/${conversation.id}/profile`} title="Block this user from their profile"><Ban size={16} />Block</Link></div>}
     <div className="chat-history" ref={scroll} onScroll={() => { const el = scroll.current!; nearBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80; }} aria-label="Message history">
       {hasOlder && <button className="chat-load-older" disabled={older} onClick={loadOlder}>{older ? 'Loading…' : 'Load earlier messages'}</button>}
       {!loaded && !loadError && <p className="chat-empty" role="status">Loading messages…</p>}
@@ -209,9 +216,11 @@ function ChatThread({ conversation, initialDraft, userId, identity, keyError, re
       </div>)}
     </div>
     <footer className="chat-composer">
+      {variant === 'lister' && <div className="lister-quick-replies"><p>Quick replies</p>{['Yes, the property is available.', 'Would you like to schedule an inspection?', 'Here are the rental details.'].map(reply => <button key={reply} disabled={!identity || sending} onClick={() => { setDraft(reply); input.current?.focus(); }}>{reply}</button>)}</div>}
       {(error || loadError || keyError) && <p className="chat-error" role="alert">{error || loadError || keyError}{loadError && <button onClick={() => setRetry(value => value + 1)}>Retry loading</button>}</p>}
       {emoji && <div className="chat-emoji" aria-label="Choose an emoji">{['😊', '👋', '👍', '🏠', '🙏', '❤️'].map(value => <button key={value} aria-label={`Insert ${value}`} disabled={sending} onClick={() => { setDraft(text => `${text}${value}`.slice(0, 4000)); setEmoji(false); input.current?.focus(); }}>{value}</button>)}<button aria-label="Close emoji picker" onClick={() => setEmoji(false)}><X size={16} /></button></div>}
-      <form onSubmit={event => { event.preventDefault(); void send(); }}><div className="chat-compose-input"><button type="button" aria-label="Choose emoji" aria-expanded={emoji} disabled={!identity} onClick={() => setEmoji(value => !value)}><Smile size={22} /></button><textarea ref={input} rows={1} aria-label="Message" placeholder="Type in your message…" value={draft} maxLength={4000} disabled={!identity || sending} onChange={event => setDraft(event.target.value)} onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); void send(); } }} /><button type="button" disabled aria-label="Attachments unavailable" title="Attachments are not available yet"><Paperclip size={22} /></button></div><button className="chat-send" aria-label={sending ? 'Sending message' : 'Send message'} disabled={!identity || sending || !draft.trim()}><SendHorizontal size={23} fill="currentColor" /></button></form>
+      <form onSubmit={event => { event.preventDefault(); void send(); }}><div className="chat-compose-input"><button type="button" aria-label="Choose emoji" aria-expanded={emoji} disabled={!identity} onClick={() => setEmoji(value => !value)}><Smile size={22} /></button><textarea ref={input} rows={1} aria-label="Message" placeholder="Type in your message…" value={draft} maxLength={4000} disabled={!identity || sending} onChange={event => setDraft(event.target.value)} onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); void send(); } }} /><button type="button" disabled aria-label="Attachments unavailable" title="Attachments are not available yet"><Paperclip size={22} /></button></div><button className="chat-send" aria-label={sending ? 'Sending message' : 'Send message'} disabled={!identity || sending || !draft.trim()}>{variant === 'lister' ? 'Send' : <SendHorizontal size={23} fill="currentColor" />}</button></form>
+      {variant === 'lister' && <p className="lister-chat-hint">Press Enter to send · Shift + Enter for a new line</p>}
       <p className="chat-safety">Never send money or share sensitive information before verifying the person/listing.</p>
     </footer>
   </section>;

@@ -114,7 +114,7 @@ export function ListerDashboard({ listingId, user, initialView = 'home', initial
     { title: 'Total inquiries', value: summary?.conversations, label: 'Conversations', detail: `${summary?.unread_messages ?? '—'} unread messages`, Icon: MessageSquare },
   ];
   const manageListings = view === 'listings';
-  const newListing = <button className="lister-primary" onClick={() => setEditor('new')}>+ List Another Property</button>;
+  const newListing = <Link className="lister-primary" href="/dashboard/listings/new">+ List Another Property</Link>;
   return <div className="lister-workspace">
     {menu && <button className="lister-menu-scrim" aria-label="Close navigation" onClick={() => setMenu(false)} />}
     <aside id="lister-navigation" className={`lister-sidebar ${menu ? 'is-open' : ''}`} aria-label="Lister workspace">
@@ -132,7 +132,7 @@ export function ListerDashboard({ listingId, user, initialView = 'home', initial
         <Link className="lister-account" href={href('settings')}><span className="lister-avatar">{safeImage(user.avatar_url) ? /* eslint-disable-next-line @next/next/no-img-element */
  <img src={safeImage(user.avatar_url)} alt="" /> : initials(user.display_name || 'Lister')}</span><span><strong>{user.display_name || 'Your account'}</strong><small>{role}</small></span><ChevronDown size={17} /></Link>
       </header>
-      {view === 'messages' ? profileConversation ? <main className="dashboard-profile-main"><ChatProfile conversationId={profileConversation} /></main> : <DashboardMessages userId={user.id} initialConversation={initialConversation} initialParticipant={initialParticipant} initialDraft={initialDraft} /> : <main className={`lister-content ${manageListings ? 'lister-management-content' : ''}`}>
+      {view === 'messages' ? profileConversation ? <main className="dashboard-profile-main"><ChatProfile conversationId={profileConversation} /></main> : <DashboardMessages variant="lister" userId={user.id} initialConversation={initialConversation} initialParticipant={initialParticipant} initialDraft={initialDraft} /> : <main className={`lister-content ${manageListings ? 'lister-management-content' : ''}`}>
         {actionError && <p className="lister-error" role="alert">{actionError}</p>}
         {notice && <p className="lister-success" role="status">{notice}</p>}
         {listingId && view === 'listings' ? !listings ? <p role="status">{error || 'Loading property details…'}</p> : listings.find(item => item.id === listingId) ? <ListerPropertyDetails key={listingId} listing={listings.find(item => item.id === listingId)!} busy={busy} onEdit={setEditor} onAvailability={item => void changeAvailability([item.id], !item.is_available)} onDeleted={() => { setListings(previous => previous?.filter(item => item.id !== listingId) || []); router.push('/dashboard?view=listings'); }} /> : <p>Listing not found. <Link href="/dashboard?view=listings">Back to My Listings</Link></p> : (view === 'home' || view === 'listings' || view === 'analytics') && <>

@@ -5,6 +5,7 @@ from app.api.v1.dependencies import CurrentUser, DbDep, ListingServiceDep
 from app.api.v1.models.models import ConversationParticipant, GenderPreference, PropertyType, UserRole
 from app.api.v1.schemas.schemas import (
     ListingCreateRequest,
+    ListingDraftRequest,
     ListingResponse,
     ListingSearchParams,
     ListingUpdateRequest,
@@ -103,6 +104,24 @@ async def get_my_listings(
     listing_service: ListingServiceDep,
 ) -> list[ListingResponse]:
     return await listing_service.get_my_listings(current_user)
+
+
+@router.get("/draft", response_model=ListingDraftRequest)
+async def get_listing_draft(current_user: CurrentUser, response: Response) -> ListingDraftRequest:
+    if current_user.role not in (UserRole.LISTER, UserRole.ADMIN):
+        raise HTTPException(status_code=403, detail="Only listers may manage listing drafts.")
+    response.headers["Cache-Control"] = "no-store"
+    return ListingDraftRequest.model_validate(current_user.listing_draft or {})
+
+
+@router.put("/draft", response_model=ListingDraftRequest)
+async def save_listing_draft(body: ListingDraftRequest, current_user: CurrentUser, db: DbDep, response: Response) -> ListingDraftRequest:
+    if current_user.role not in (UserRole.LISTER, UserRole.ADMIN):
+        raise HTTPException(status_code=403, detail="Only listers may manage listing drafts.")
+    current_user.listing_draft = body.model_dump(mode="json")
+    await db.flush()
+    response.headers["Cache-Control"] = "no-store"
+    return body
 
 
 @router.get("/workspace-summary", summary="Lister conversation totals")
